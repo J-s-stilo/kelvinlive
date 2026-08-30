@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Kelvin Live",
+    "slug": "kelvinlive",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kelvinlive.app"
+    },
+    "android": {
+      "package": "com.kelvinlive.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    }
+  }
+}
