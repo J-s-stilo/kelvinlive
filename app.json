@@ -1,23 +1,31 @@
 {
-  "expo": {
-    "name": "Kelvin Live",
-    "slug": "kelvinlive",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
+  "name": "Kelvin Live",
+  "slug": "kelvinlive",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "userInterfaceStyle": "light",
+  "newArchEnabled": true,
+  "splash": {
+    "backgroundColor": "#ffffff"
+  },
+  "ios": {
+    "supportsTablet": true,
+    "bundleIdentifier": "com.kelvinlive.app"
+  },
+  "android": {
+    "package": "com.kelvinlive.app",
+    "adaptiveIcon": {
       "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.kelvinlive.app"
-    },
-    "android": {
-      "package": "com.kelvinlive.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
-      }
+    }
+  },
+  "sdkVersion": "55.0.0",
+  "platforms": [
+    "ios",
+    "android"
+  ],
+  "extra": {
+    "eas": {
+      "projectId": "c45551a5-5f1a-4b25-8488-f71167066fc7"
     }
   }
 }
