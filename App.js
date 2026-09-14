@@ -7,21 +7,32 @@ import {
   StyleSheet,
   StatusBar,
 } from 'react-native';
+import {
+  CameraView,
+  useCameraPermissions,
+} from 'expo-camera';
 
 export default function App() {
   const [started, setStarted] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+
+  const startCamera = async () => {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+
+      if (!result.granted) {
+        return;
+      }
+    }
+
+    setStarted(true);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       <View style={styles.container}>
-
-        <View style={styles.topMark}>
-          <View style={styles.markInner}>
-            <Text style={styles.markText}>K</Text>
-          </View>
-        </View>
 
         {!started ? (
           <View style={styles.center}>
@@ -37,46 +48,62 @@ export default function App() {
             </Text>
 
             <Pressable
-              onPress={() => setStarted(true)}
+              onPress={startCamera}
               style={({ pressed }) => [
                 styles.button,
                 pressed && styles.buttonPressed,
               ]}
             >
-              <Text style={styles.buttonText}>Get Started</Text>
+              <Text style={styles.buttonText}>Start Camera</Text>
               <Text style={styles.arrow}>→</Text>
             </Pressable>
 
           </View>
         ) : (
-          <View style={styles.center}>
+          <View style={styles.cameraScreen}>
 
-            <View style={styles.liveBadge}>
-              <View style={styles.dot} />
-              <Text style={styles.liveText}>LIVE</Text>
+            <View style={styles.cameraHeader}>
+              <View>
+                <Text style={styles.cameraTitle}>Kelvin Live</Text>
+                <Text style={styles.cameraSubtitle}>
+                  Camera Preview
+                </Text>
+              </View>
+
+              <View style={styles.liveBadge}>
+                <View style={styles.dot} />
+                <Text style={styles.liveText}>LIVE</Text>
+              </View>
             </View>
 
-            <Text style={styles.title}>
-              Welcome to Kelvin Live
-            </Text>
+            <View style={styles.cameraFrame}>
+              <CameraView
+                style={styles.camera}
+                facing="front"
+              />
 
-            <Text style={styles.subtitle}>
-              Your live avatar experience starts here.
-            </Text>
+              <View style={styles.cameraOverlay}>
+                <Text style={styles.overlayText}>
+                  Your camera is live
+                </Text>
+              </View>
+            </View>
 
             <Pressable
               onPress={() => setStarted(false)}
               style={styles.secondaryButton}
             >
-              <Text style={styles.secondaryText}>Back</Text>
+              <Text style={styles.secondaryText}>Stop Camera</Text>
             </Pressable>
 
           </View>
         )}
 
-        <Text style={styles.footer}>
-          Kelvin Live • 1.0
-        </Text>
+        {!started && (
+          <Text style={styles.footer}>
+            Kelvin Live • Camera Test
+          </Text>
+        )}
 
       </View>
     </SafeAreaView>
@@ -93,32 +120,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingHorizontal: 28,
+    paddingHorizontal: 22,
     paddingTop: 18,
     paddingBottom: 20,
     justifyContent: 'space-between',
   },
 
-  topMark: {
-    alignItems: 'flex-start',
-  },
-
-  markInner: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  markText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-
   center: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
@@ -145,7 +154,6 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '800',
     textAlign: 'center',
-    letterSpacing: -0.7,
   },
 
   subtitle: {
@@ -186,14 +194,37 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
+  cameraScreen: {
+    flex: 1,
+    width: '100%',
+  },
+
+  cameraHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+
+  cameraTitle: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+
+  cameraSubtitle: {
+    color: '#667085',
+    fontSize: 14,
+    marginTop: 3,
+  },
+
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#f2f4f7',
-    marginBottom: 24,
   },
 
   dot: {
@@ -201,18 +232,51 @@ const styles = StyleSheet.create({
     height: 9,
     borderRadius: 5,
     backgroundColor: '#111827',
-    marginRight: 8,
+    marginRight: 7,
   },
 
   liveText: {
     color: '#111827',
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 1,
   },
 
+  cameraFrame: {
+    flex: 1,
+    width: '100%',
+    maxHeight: 620,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#111827',
+  },
+
+  camera: {
+    flex: 1,
+    width: '100%',
+  },
+
+  cameraOverlay: {
+    position: 'absolute',
+    bottom: 18,
+    left: 18,
+    right: 18,
+    alignItems: 'center',
+  },
+
+  overlayText: {
+    color: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
   secondaryButton: {
-    marginTop: 28,
+    marginTop: 18,
+    alignSelf: 'center',
     borderWidth: 1,
     borderColor: '#d0d5dd',
     borderRadius: 24,
