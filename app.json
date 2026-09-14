@@ -7,6 +7,16 @@
   "splash": {
     "backgroundColor": "#ffffff"
   },
+  "plugins": [
+    [
+      "expo-camera",
+      {
+        "cameraPermission": "Allow Kelvin Live to access your camera",
+        "microphonePermission": "Allow Kelvin Live to access your microphone",
+        "recordAudioAndroid": true
+      }
+    ]
+  ],
   "ios": {
     "supportsTablet": true,
     "bundleIdentifier": "com.kelvinlive.app"
