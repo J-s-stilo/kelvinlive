@@ -88,7 +88,7 @@
       Real-time avatar video technology
     </p>
 
-    <button id="getStarted">
+    <button id="getStarted" type="button">
       Get Started
     </button>
 
@@ -99,26 +99,22 @@
   </main>
 
   <script>
-    document.getElementById("getStarted").addEventListener("click", function () {
-      alert("Welcome to Kelvin Live!");
-    });
-    <script>
-  function startKelvinLive() {
-    window.location.href = "/app/";
-  }
-
-  function initializeKelvinLive() {
-    const getStartedButton = document.getElementById("getStarted");
-
-    if (!getStartedButton) {
-      return;
+    function startKelvinLive() {
+      window.location.href = "/app/";
     }
 
-    getStartedButton.addEventListener("click", startKelvinLive);
-  }
+    function initializeKelvinLive() {
+      const getStartedButton = document.getElementById("getStarted");
 
-  document.addEventListener("DOMContentLoaded", initializeKelvinLive);
-</script>
-  
+      if (!getStartedButton) {
+        return;
+      }
+
+      getStartedButton.addEventListener("click", startKelvinLive);
+    }
+
+    document.addEventListener("DOMContentLoaded", initializeKelvinLive);
+  </script>
+
 </body>
 </html>
