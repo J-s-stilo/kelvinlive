@@ -1,10 +1,13 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { WebSocketServer } = require("ws");
 
 const PORT = process.env.PORT || 3000;
-const DIST_DIR = path.join(__dirname, "dist");
+const WEB_DIR = path.join(__dirname, "web");
+
+const rooms = new Map();
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -16,764 +19,240 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf"
+  ".webp": "image/webp"
 };
 
-function sendHTML(res, html) {
-  res.writeHead(200, {
-    "Content-Type": "text/html; charset=utf-8"
+function sendJSON(res, status, data) {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8"
   });
-
-  res.end(html);
+  res.end(JSON.stringify(data));
 }
-
-/* =========================
-   LANDING PAGE
-========================= */
-
-function sendLandingPage(res) {
-  sendHTML(res, `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0">
-
-  <title>Kelvin Live</title>
-
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: #050505;
-      color: white;
-      font-family: Arial, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 430px;
-      padding: 30px 22px;
-      text-align: center;
-    }
-
-    .logo {
-      width: 88px;
-      height: 88px;
-      margin: 0 auto 24px;
-      border-radius: 24px;
-      background: linear-gradient(135deg, #7c3aed, #2563eb);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 48px;
-      font-weight: 800;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 34px;
-    }
-
-    p {
-      color: #aaa;
-      margin: 12px 0 30px;
-      line-height: 1.5;
-    }
-
-    button {
-      width: 100%;
-      border: 0;
-      border-radius: 16px;
-      padding: 17px;
-      font-size: 17px;
-      font-weight: bold;
-      color: white;
-      background: linear-gradient(135deg, #7c3aed, #2563eb);
-      cursor: pointer;
-    }
-
-    button:active {
-      transform: scale(.98);
-    }
-  </style>
-</head>
-
-<body>
-
-  <div class="container">
-
-    <div class="logo">K</div>
-
-    <h1>Kelvin Live</h1>
-
-    <p>
-      Connect. Create. Go Live.
-    </p>
-
-    <button onclick="window.location.href='/app'">
-      Get Started
-    </button>
-
-  </div>
-
-</body>
-</html>
-  `);
-}
-
-/* =========================
-   APP / CAMERA PAGE
-========================= */
-
-function sendAppPage(res) {
-  sendHTML(res, `
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8">
-
-  <meta name="viewport"
-        content="width=device-width,
-                 initial-scale=1.0,
-                 maximum-scale=1.0,
-                 user-scalable=no">
-
-  <title>Kelvin Live</title>
-
-  <style>
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: #050505;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
-
-    .app {
-      width: 100%;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 22px 18px 35px;
-    }
-
-    .top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 24px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .small-logo {
-      width: 48px;
-      height: 48px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #7c3aed, #2563eb);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 25px;
-      font-weight: 800;
-    }
-
-    .brand-title {
-      font-size: 20px;
-      font-weight: bold;
-    }
-
-    .brand-sub {
-      color: #888;
-      font-size: 13px;
-      margin-top: 3px;
-    }
-
-    .back {
-      border: 0;
-      background: #171717;
-      color: white;
-      padding: 10px 14px;
-      border-radius: 12px;
-      cursor: pointer;
-    }
-
-    .camera-card {
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 22px;
-      overflow: hidden;
-    }
-
-    .camera-header {
-      padding: 17px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .camera-title {
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .live {
-      background: #ef4444;
-      color: white;
-      border-radius: 20px;
-      padding: 6px 10px;
-      font-size: 11px;
-      font-weight: bold;
-      display: none;
-    }
-
-    .video-wrap {
-      width: 100%;
-      aspect-ratio: 9 / 16;
-      max-height: 65vh;
-      background: #000;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: none;
-    }
-
-    .placeholder {
-      color: #777;
-      text-align: center;
-      padding: 30px;
-    }
-
-    .controls {
-      padding: 17px;
-      display: grid;
-      gap: 11px;
-    }
-
-    .control {
-      width: 100%;
-      border: 0;
-      border-radius: 14px;
-      padding: 15px;
-      font-size: 15px;
-      font-weight: bold;
-      cursor: pointer;
-      color: white;
-      background: #222;
-    }
-
-    .start {
-      background: linear-gradient(135deg, #7c3aed, #2563eb);
-    }
-
-    .stop {
-      background: #7f1d1d;
-      display: none;
-    }
-
-    .switch {
-      display: none;
-    }
-
-    .status {
-      text-align: center;
-      color: #777;
-      font-size: 13px;
-      padding: 4px 10px 8px;
-    }
-
-  </style>
-</head>
-
-<body>
-
-<div class="app">
-
-  <div class="top">
-
-    <div class="brand">
-
-      <div class="small-logo">K</div>
-
-      <div>
-        <div class="brand-title">
-          Kelvin Live
-        </div>
-
-        <div class="brand-sub">
-          Camera
-        </div>
-      </div>
-
-    </div>
-
-    <button class="back"
-            onclick="window.location.href='/'">
-      Back
-    </button>
-
-  </div>
-
-
-  <div class="camera-card">
-
-    <div class="camera-header">
-
-      <div class="camera-title">
-        Camera Preview
-      </div>
-
-      <div id="liveBadge"
-           class="live">
-        LIVE
-      </div>
-
-    </div>
-
-
-    <div class="video-wrap">
-
-      <video id="video"
-             autoplay
-             playsinline>
-      </video>
-
-      <div id="placeholder"
-           class="placeholder">
-
-        Camera area<br><br>
-
-        Start your camera to begin.
-
-      </div>
-
-    </div>
-
-
-    <div class="status"
-         id="status">
-      Camera is off
-    </div>
-
-
-    <div class="controls">
-
-      <button id="startButton"
-              class="control start"
-              onclick="startCamera()">
-        Start Camera
-      </button>
-
-      <button id="switchButton"
-              class="control switch"
-              onclick="switchCamera()">
-        Switch Camera
-      </button>
-
-      <button id="stopButton"
-              class="control stop"
-              onclick="stopCamera()">
-        Stop Camera
-      </button>
-
-    </div>
-
-  </div>
-
-</div>
-
-
-<script>
-
-let cameraStream = null;
-
-let facingMode = "user";
-
-
-async function startCamera() {
-
-  const video =
-    document.getElementById("video");
-
-  const placeholder =
-    document.getElementById("placeholder");
-
-  const startButton =
-    document.getElementById("startButton");
-
-  const stopButton =
-    document.getElementById("stopButton");
-
-  const switchButton =
-    document.getElementById("switchButton");
-
-  const liveBadge =
-    document.getElementById("liveBadge");
-
-  const status =
-    document.getElementById("status");
-
-
-  try {
-
-    if (cameraStream) {
-      stopCamera();
-    }
-
-
-    status.textContent =
-      "Requesting camera permission...";
-
-
-    cameraStream =
-      await navigator.mediaDevices.getUserMedia({
-
-        video: {
-          facingMode: {
-            ideal: facingMode
-          }
-        },
-
-        audio: false
-
-      });
-
-
-    video.srcObject =
-      cameraStream;
-
-
-    video.style.display =
-      "block";
-
-    placeholder.style.display =
-      "none";
-
-    startButton.style.display =
-      "none";
-
-    stopButton.style.display =
-      "block";
-
-    switchButton.style.display =
-      "block";
-
-    liveBadge.style.display =
-      "block";
-
-
-    status.textContent =
-      facingMode === "user"
-        ? "Front camera active"
-        : "Back camera active";
-
-  }
-
-  catch (error) {
-
-    console.error(error);
-
-    status.textContent =
-      "Camera permission was denied or unavailable.";
-
-    cameraStream = null;
-
-  }
-
-}
-
-
-async function switchCamera() {
-
-  facingMode =
-    facingMode === "user"
-      ? "environment"
-      : "user";
-
-
-  await startCamera();
-
-}
-
-
-function stopCamera() {
-
-  const video =
-    document.getElementById("video");
-
-  const placeholder =
-    document.getElementById("placeholder");
-
-  const startButton =
-    document.getElementById("startButton");
-
-  const stopButton =
-    document.getElementById("stopButton");
-
-  const switchButton =
-    document.getElementById("switchButton");
-
-  const liveBadge =
-    document.getElementById("liveBadge");
-
-  const status =
-    document.getElementById("status");
-
-
-  if (cameraStream) {
-
-    cameraStream
-      .getTracks()
-      .forEach(track => track.stop());
-
-    cameraStream = null;
-
-  }
-
-
-  video.srcObject = null;
-
-  video.style.display =
-    "none";
-
-  placeholder.style.display =
-    "block";
-
-  startButton.style.display =
-    "block";
-
-  stopButton.style.display =
-    "none";
-
-  switchButton.style.display =
-    "none";
-
-  liveBadge.style.display =
-    "none";
-
-  status.textContent =
-    "Camera is off";
-
-}
-
-</script>
-
-</body>
-</html>
-  `);
-}
-
-
-/* =========================
-   STATIC FILE SERVER
-========================= */
 
 function sendFile(res, filePath) {
-
-  fs.readFile(filePath, (error, data) => {
-
-    if (error) {
-
-      res.writeHead(404, {
-        "Content-Type":
-          "text/plain; charset=utf-8"
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      return sendJSON(res, 404, {
+        ok: false,
+        error: "File not found"
       });
-
-      return res.end("Not found");
     }
 
-
-    const extension =
-      path.extname(filePath).toLowerCase();
-
+    const ext = path.extname(filePath).toLowerCase();
 
     res.writeHead(200, {
       "Content-Type":
-        MIME_TYPES[extension] ||
-        "application/octet-stream"
+        MIME_TYPES[ext] || "application/octet-stream"
     });
-
 
     res.end(data);
-
   });
-
 }
 
+function safeWebPath(requestPath) {
+  const cleanPath = path.normalize(requestPath).replace(/^(\.\.[/\\])+/, "");
+  const filePath = path.join(WEB_DIR, cleanPath);
 
-/* =========================
-   HTTP SERVER
-========================= */
+  const webRoot = path.resolve(WEB_DIR);
+  const resolved = path.resolve(filePath);
 
-const server =
-  http.createServer((req, res) => {
+  if (
+    resolved !== webRoot &&
+    !resolved.startsWith(webRoot + path.sep)
+  ) {
+    return null;
+  }
 
-    const requestPath =
-      decodeURIComponent(
-        req.url.split("?")[0]
-      );
+  return resolved;
+}
 
+function createRoom() {
+  let code;
 
-    /* Health check */
+  do {
+    code =
+      "KLV-" +
+      crypto
+        .randomBytes(3)
+        .toString("hex")
+        .toUpperCase();
+  } while (rooms.has(code));
 
-    if (requestPath === "/health") {
+  rooms.set(code, new Set());
 
-      res.writeHead(200, {
-        "Content-Type":
-          "application/json"
-      });
+  return code;
+}
 
-      return res.end(
-        JSON.stringify({
-          ok: true,
-          service: "kelvinlive-server"
-        })
-      );
+function addToRoom(code, socket) {
+  if (!rooms.has(code)) {
+    rooms.set(code, new Set());
+  }
 
-    }
+  rooms.get(code).add(socket);
+  socket.roomCode = code;
+}
 
+function removeFromRoom(socket) {
+  const code = socket.roomCode;
 
-    /* Kelvin Live app */
+  if (!code || !rooms.has(code)) {
+    return;
+  }
 
+  const room = rooms.get(code);
+
+  room.delete(socket);
+
+  if (room.size === 0) {
+    rooms.delete(code);
+  }
+
+  socket.roomCode = null;
+}
+
+function broadcastToRoom(code, sender, message) {
+  const room = rooms.get(code);
+
+  if (!room) {
+    return;
+  }
+
+  const payload = JSON.stringify(message);
+
+  room.forEach(client => {
     if (
-      requestPath === "/app" ||
-      requestPath === "/app/"
+      client !== sender &&
+      client.readyState === 1
     ) {
-
-      return sendAppPage(res);
-
+      client.send(payload);
     }
-
-
-    /* Root landing page */
-
-    if (requestPath === "/") {
-
-      /*
-       * If an Expo build exists,
-       * serve it.
-       *
-       * Otherwise use our working
-       * Kelvin Live landing page.
-       */
-
-      const expoIndex =
-        path.join(
-          DIST_DIR,
-          "index.html"
-        );
-
-
-      if (fs.existsSync(expoIndex)) {
-
-        return sendFile(
-          res,
-          expoIndex
-        );
-
-      }
-
-
-      return sendLandingPage(res);
-
-    }
-
-
-    /* Static files from dist */
-
-    if (fs.existsSync(DIST_DIR)) {
-
-      const requestedFile =
-        path.join(
-          DIST_DIR,
-          requestPath
-        );
-
-
-      const safePath =
-        path.normalize(requestedFile);
-
-      const normalizedDist =
-        path.normalize(DIST_DIR);
-
-
-      if (
-        safePath !== normalizedDist &&
-        !safePath.startsWith(
-          normalizedDist + path.sep
-        )
-      ) {
-
-        res.writeHead(403, {
-          "Content-Type":
-            "text/plain; charset=utf-8"
-        });
-
-        return res.end("Forbidden");
-
-      }
-
-
-      if (fs.existsSync(safePath)) {
-
-        const stats =
-          fs.statSync(safePath);
-
-
-        if (stats.isFile()) {
-
-          return sendFile(
-            res,
-            safePath
-          );
-
-        }
-
-      }
-
-    }
-
-
-    res.writeHead(404, {
-      "Content-Type":
-        "text/plain; charset=utf-8"
-    });
-
-    res.end("Kelvin Live page not found.");
-
   });
+}
+
+const server = http.createServer((req, res) => {
+  const requestPath =
+    decodeURIComponent(
+      req.url.split("?")[0]
+    );
+
+  /* =========================
+     HEALTH
+  ========================= */
+
+  if (requestPath === "/health") {
+    return sendJSON(res, 200, {
+      ok: true,
+      service: "kelvinlive-server",
+      rooms: rooms.size
+    });
+  }
+
+  /* =========================
+     CREATE CALL
+  ========================= */
+
+  if (
+    requestPath === "/api/call/create" &&
+    req.method === "POST"
+  ) {
+    const code = createRoom();
+
+    return sendJSON(res, 200, {
+      ok: true,
+      code
+    });
+  }
+
+  /* =========================
+     CHECK CALL
+  ========================= */
+
+  if (
+    requestPath.startsWith("/api/call/") &&
+    req.method === "GET"
+  ) {
+    const code = requestPath
+      .split("/")
+      .pop()
+      .toUpperCase();
+
+    return sendJSON(res, 200, {
+      ok: true,
+      exists: rooms.has(code),
+      code
+    });
+  }
+
+  /* =========================
+     MAIN APP
+  ========================= */
+
+  if (
+    requestPath === "/" ||
+    requestPath === "/index.html"
+  ) {
+    const indexPath =
+      path.join(WEB_DIR, "index.html");
+
+    if (fs.existsSync(indexPath)) {
+      return sendFile(res, indexPath);
+    }
+
+    return sendJSON(res, 404, {
+      ok: false,
+      error: "Kelvin Live index.html not found"
+    });
+  }
+
+  /*
+   * Keep /app working.
+   *
+   * It points to the same main
+   * Kelvin Live interface instead
+   * of the old camera-only page.
+   */
+
+  if (
+    requestPath === "/app" ||
+    requestPath === "/app/"
+  ) {
+    const indexPath =
+      path.join(WEB_DIR, "index.html");
+
+    if (fs.existsSync(indexPath)) {
+      return sendFile(res, indexPath);
+    }
+
+    return sendJSON(res, 404, {
+      ok: false,
+      error: "Kelvin Live app not found"
+    });
+  }
+
+  /* =========================
+     STATIC WEB FILES
+  ========================= */
+
+  const filePath =
+    safeWebPath(requestPath);
+
+  if (
+    filePath &&
+    fs.existsSync(filePath) &&
+    fs.statSync(filePath).isFile()
+  ) {
+    return sendFile(res, filePath);
+  }
+
+  return sendJSON(res, 404, {
+    ok: false,
+    error: "Kelvin Live page not found"
+  });
+});
 
 
 /* =========================
-   WEBSOCKET SIGNALING
+   WEBSOCKET SERVER
 ========================= */
 
 const wss =
@@ -781,8 +260,8 @@ const wss =
     server
   });
 
-
 wss.on("connection", socket => {
+  socket.roomCode = null;
 
   socket.send(
     JSON.stringify({
@@ -791,56 +270,177 @@ wss.on("connection", socket => {
     })
   );
 
-
   socket.on("message", raw => {
-
     let message;
 
-
     try {
-
       message =
-        JSON.parse(
-          raw.toString()
-        );
-
-    }
-
-    catch {
+        JSON.parse(raw.toString());
+    } catch {
+      socket.send(
+        JSON.stringify({
+          type: "error",
+          message: "Invalid message"
+        })
+      );
 
       return;
-
     }
 
+    /*
+     * CREATE / JOIN ROOM
+     */
 
-    wss.clients.forEach(client => {
+    if (
+      message.type === "join-room"
+    ) {
+      const code =
+        String(message.code || "")
+          .trim()
+          .toUpperCase();
 
-      if (
-        client !== socket &&
-        client.readyState === 1
-      ) {
-
-        client.send(
-          JSON.stringify(message)
+      if (!code) {
+        socket.send(
+          JSON.stringify({
+            type: "error",
+            message: "Call code is required"
+          })
         );
 
+        return;
       }
 
-    });
+      if (!rooms.has(code)) {
+        rooms.set(code, new Set());
+      }
 
+      const room = rooms.get(code);
+
+      if (room.size >= 2) {
+        socket.send(
+          JSON.stringify({
+            type: "room-full",
+            code
+          })
+        );
+
+        return;
+      }
+
+      addToRoom(code, socket);
+
+      socket.send(
+        JSON.stringify({
+          type: "joined-room",
+          code,
+          participants: room.size
+        })
+      );
+
+      if (room.size === 2) {
+        room.forEach(client => {
+          if (client.readyState === 1) {
+            client.send(
+              JSON.stringify({
+                type: "peer-ready",
+                code
+              })
+            );
+          }
+        });
+      }
+
+      return;
+    }
+
+    /*
+     * WEBRTC SIGNALING
+     *
+     * offer
+     * answer
+     * ice-candidate
+     */
+
+    const signalingTypes = [
+      "offer",
+      "answer",
+      "ice-candidate"
+    ];
+
+    if (
+      signalingTypes.includes(
+        message.type
+      )
+    ) {
+      if (!socket.roomCode) {
+        return;
+      }
+
+      broadcastToRoom(
+        socket.roomCode,
+        socket,
+        {
+          ...message,
+          code: socket.roomCode
+        }
+      );
+
+      return;
+    }
+
+    /*
+     * LEAVE CALL
+     */
+
+    if (
+      message.type === "leave-room"
+    ) {
+      const code = socket.roomCode;
+
+      if (code) {
+        broadcastToRoom(
+          code,
+          socket,
+          {
+            type: "peer-left"
+          }
+        );
+
+        removeFromRoom(socket);
+      }
+
+      return;
+    }
   });
 
+  socket.on("close", () => {
+    const code = socket.roomCode;
+
+    if (code) {
+      broadcastToRoom(
+        code,
+        socket,
+        {
+          type: "peer-left"
+        }
+      );
+
+      removeFromRoom(socket);
+    }
+  });
+
+  socket.on("error", () => {
+    removeFromRoom(socket);
+  });
 });
 
 
 /* =========================
-   START SERVER
+   START
 ========================= */
 
 server.listen(PORT, () => {
-
   console.log(
-    `Kelvin Live server listening on port ${PORT}`
+    `Kelvin Live server listening on ${PORT}`
   );
-
 });
