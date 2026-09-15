@@ -383,7 +383,7 @@ video{
       <small>Your call code</small>
       <div id="callCode" class="call-code">KLV-000000</div>
       <button class="btn secondary" onclick="copyCode()">Copy Call Code</button>
-      <button class="btn" onclick="show('callScreen')">Enter Call</button>
+      <button class="btn" onclick="enterCreatedCall()">Enter Call</button>
     </div>
   </div>
 </section>
@@ -431,8 +431,9 @@ video{
     </div>
 
     <div class="video-wrap">
-      <video id="localVideo" autoplay muted playsinline></video>
-      <div class="call-label" id="callStatus">Connecting...</div>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay muted playsinline style="position:absolute;right:12px;bottom:12px;width:32%;height:28%;border-radius:14px;border:2px solid #fff;object-fit:cover"></video>
+      <div class="call-label" id="callStatus">Waiting for another device...</div>
     </div>
 
     <div class="controls">
@@ -543,11 +544,17 @@ video{
 let authMode="login";
 let selectedAvatar="Avatar 1";
 let stream=null;
+let remoteStream=null;
+let peerConnection=null;
+let signalingSocket=null;
 let currentFacing="user";
 let micOn=true;
 let cameraOn=true;
 let timerInterval=null;
 let seconds=0;
+let callRole=null;
+let callConnected=false;
+const rtcConfig={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
 
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));
@@ -603,23 +610,46 @@ function logout(){
   show("welcome");
 }
 
-function createCall(){
-  const code="KLV-"+Math.random().toString(36).substring(2,8).toUpperCase();
+async function createCall(){
+  try{
+    const response=await fetch("/api/call/create",{method:"POST"});
+    const data=await response.json();
+    if(!data.ok) throw new Error(data.error||"Unable to create call");
 
-  document.getElementById("callCode").textContent=code;
-  document.getElementById("createdCall").classList.remove("hidden");
-
-  localStorage.setItem("kelvinCallCode",code);
+    const code=data.code;
+    document.getElementById("callCode").textContent=code;
+    document.getElementById("createdCall").classList.remove("hidden");
+    localStorage.setItem("kelvinCallCode",code);
+  }catch(error){
+    toast(error.message||"Unable to create call");
+  }
 }
 
-function joinCall(){
-  const code=document.getElementById("joinCode").value.trim();
+async function joinCall(){
+  const code=document.getElementById("joinCode").value.trim().toUpperCase();
 
   if(!code){
     toast("Enter a call code");
     return;
   }
 
+  try{
+    const response=await fetch("/api/call/"+encodeURIComponent(code));
+    const data=await response.json();
+    if(!data.exists){
+      toast("Call not found");
+      return;
+    }
+    localStorage.setItem("kelvinCallCode",code);
+    show("callScreen");
+  }catch(error){
+    toast("Unable to reach Kelvin Live server");
+  }
+}
+
+async function enterCreatedCall(){
+  const code=document.getElementById("callCode").textContent.trim();
+  if(!code || code==="KLV-000000") return;
   localStorage.setItem("kelvinCallCode",code);
   show("callScreen");
 }
@@ -651,44 +681,163 @@ function addAvatar(event){
   toast("Avatar image added");
 }
 
+function wsUrl(){
+  const protocol=location.protocol==="https:"?"wss":"ws";
+  return protocol+"://"+location.host;
+}
+
 async function startCamera(){
   if(stream) return;
 
   try{
     stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:currentFacing},
+      video:{facingMode:currentFacing,width:{ideal:1280},height:{ideal:720}},
       audio:true
     });
 
-    const video=document.getElementById("localVideo");
-    video.srcObject=stream;
-
-    document.getElementById("callStatus").textContent="Camera ready";
-
+    document.getElementById("localVideo").srcObject=stream;
+    document.getElementById("callStatus").textContent="Camera ready — connecting...";
     startTimer();
-
+    await connectSignaling();
   }catch(error){
-    document.getElementById("callStatus").textContent="Camera permission required";
+    document.getElementById("callStatus").textContent="Camera/microphone permission required";
     toast("Allow camera and microphone access");
   }
 }
 
-async function switchCamera(){
-  currentFacing=currentFacing==="user"?"environment":"user";
+function connectSignaling(){
+  return new Promise((resolve,reject)=>{
+    const code=(localStorage.getItem("kelvinCallCode")||"").toUpperCase();
+    if(!code){reject(new Error("No call code"));return;}
+
+    if(signalingSocket && signalingSocket.readyState===WebSocket.OPEN){
+      signalingSocket.send(JSON.stringify({type:"join-room",code}));
+      resolve();
+      return;
+    }
+
+    signalingSocket=new WebSocket(wsUrl());
+
+    signalingSocket.onopen=()=>{
+      signalingSocket.send(JSON.stringify({type:"join-room",code}));
+      resolve();
+    };
+
+    signalingSocket.onmessage=async event=>{
+      let message;
+      try{message=JSON.parse(event.data)}catch{return;}
+
+      if(message.type==="joined-room"){
+        callRole=message.role;
+        document.getElementById("callStatus").textContent=
+          message.participants===2?"Peer connected — negotiating...":"Waiting for second device...";
+        return;
+      }
+
+      if(message.type==="peer-ready"){
+        if(message.initiator){
+          await makeOffer();
+        }
+        return;
+      }
+
+      if(message.type==="offer"){
+        await ensurePeerConnection();
+        await peerConnection.setRemoteDescription(message.offer);
+        const answer=await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        sendSignal({type:"answer",answer});
+        return;
+      }
+
+      if(message.type==="answer" && peerConnection){
+        await peerConnection.setRemoteDescription(message.answer);
+        return;
+      }
+
+      if(message.type==="ice-candidate" && peerConnection && message.candidate){
+        try{await peerConnection.addIceCandidate(message.candidate)}catch(error){console.warn("ICE candidate error",error)}
+        return;
+      }
+
+      if(message.type==="peer-left"){
+        callConnected=false;
+        document.getElementById("callStatus").textContent="Peer left the call";
+        const remote=document.getElementById("remoteVideo");
+        remote.srcObject=null;
+      }
+
+      if(message.type==="room-full"){
+        toast("This call already has two devices");
+        endCall();
+      }
+    };
+
+    signalingSocket.onerror=()=>reject(new Error("Signaling connection failed"));
+    signalingSocket.onclose=()=>{
+      if(!callConnected && document.getElementById("callScreen") && !document.getElementById("callScreen").classList.contains("hidden")){
+        document.getElementById("callStatus").textContent="Connection closed";
+      }
+    };
+  });
+}
+
+function sendSignal(message){
+  if(signalingSocket && signalingSocket.readyState===WebSocket.OPEN){
+    signalingSocket.send(JSON.stringify(message));
+  }
+}
+
+async function ensurePeerConnection(){
+  if(peerConnection) return peerConnection;
+
+  peerConnection=new RTCPeerConnection(rtcConfig);
 
   if(stream){
-    stream.getTracks().forEach(track=>track.stop());
-    stream=null;
+    stream.getTracks().forEach(track=>peerConnection.addTrack(track,stream));
   }
 
+  peerConnection.ontrack=event=>{
+    remoteStream=event.streams[0];
+    document.getElementById("remoteVideo").srcObject=remoteStream;
+    callConnected=true;
+    document.getElementById("callStatus").textContent="Live connection";
+  };
+
+  peerConnection.onicecandidate=event=>{
+    if(event.candidate) sendSignal({type:"ice-candidate",candidate:event.candidate});
+  };
+
+  peerConnection.onconnectionstatechange=()=>{
+    const state=peerConnection.connectionState;
+    if(state==="connected"){
+      callConnected=true;
+      document.getElementById("callStatus").textContent="Live connection";
+    }else if(state==="failed" || state==="disconnected"){
+      document.getElementById("callStatus").textContent="Connection interrupted";
+    }
+  };
+
+  return peerConnection;
+}
+
+async function makeOffer(){
+  await ensurePeerConnection();
+  const offer=await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+  sendSignal({type:"offer",offer});
+}
+
+async function switchCamera(){
+  currentFacing=currentFacing==="user"?"environment":"user";
+  if(stream){stream.getTracks().forEach(track=>track.stop());stream=null;}
+  if(peerConnection){peerConnection.close();peerConnection=null;}
   await startCamera();
 }
 
 function toggleMic(){
   if(!stream)return;
-
   const audio=stream.getAudioTracks()[0];
-
   if(audio){
     micOn=!micOn;
     audio.enabled=micOn;
@@ -698,40 +847,39 @@ function toggleMic(){
 
 function toggleCamera(){
   if(!stream)return;
-
   const video=stream.getVideoTracks()[0];
-
   if(video){
     cameraOn=!cameraOn;
     video.enabled=cameraOn;
-    document.getElementById("cameraBtn").textContent=
-      cameraOn?"📷":"🚫";
+    document.getElementById("cameraBtn").textContent=cameraOn?"📷":"🚫";
   }
 }
 
 function startTimer(){
   clearInterval(timerInterval);
   seconds=0;
-
   timerInterval=setInterval(()=>{
     seconds++;
-
     const min=String(Math.floor(seconds/60)).padStart(2,"0");
     const sec=String(seconds%60).padStart(2,"0");
-
     document.getElementById("timer").textContent=min+":"+sec;
   },1000);
 }
 
 function endCall(){
-  if(stream){
-    stream.getTracks().forEach(track=>track.stop());
-    stream=null;
+  if(stream){stream.getTracks().forEach(track=>track.stop());stream=null;}
+  if(peerConnection){peerConnection.close();peerConnection=null;}
+  if(signalingSocket){
+    try{signalingSocket.send(JSON.stringify({type:"leave-room"}))}catch{}
+    signalingSocket.close();
+    signalingSocket=null;
   }
-
+  remoteStream=null;
+  callConnected=false;
   clearInterval(timerInterval);
   document.getElementById("timer").textContent="00:00";
-
+  document.getElementById("remoteVideo").srcObject=null;
+  document.getElementById("localVideo").srcObject=null;
   show("dashboard");
   toast("Call ended");
 }
