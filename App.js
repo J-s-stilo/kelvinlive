@@ -7,26 +7,9 @@ import {
   StyleSheet,
   StatusBar,
 } from 'react-native';
-import {
-  CameraView,
-  useCameraPermissions,
-} from 'expo-camera';
 
 export default function App() {
   const [started, setStarted] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-
-  const startCamera = async () => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-
-      if (!result.granted) {
-        return;
-      }
-    }
-
-    setStarted(true);
-  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -48,7 +31,7 @@ export default function App() {
             </Text>
 
             <Pressable
-              onPress={startCamera}
+              onPress={() => setStarted(true)}
               style={({ pressed }) => [
                 styles.button,
                 pressed && styles.buttonPressed,
@@ -64,7 +47,10 @@ export default function App() {
 
             <View style={styles.cameraHeader}>
               <View>
-                <Text style={styles.cameraTitle}>Kelvin Live</Text>
+                <Text style={styles.cameraTitle}>
+                  Kelvin Live
+                </Text>
+
                 <Text style={styles.cameraSubtitle}>
                   Camera Preview
                 </Text>
@@ -72,28 +58,30 @@ export default function App() {
 
               <View style={styles.liveBadge}>
                 <View style={styles.dot} />
-                <Text style={styles.liveText}>LIVE</Text>
+
+                <Text style={styles.liveText}>
+                  LIVE
+                </Text>
               </View>
             </View>
 
             <View style={styles.cameraFrame}>
-              <CameraView
-                style={styles.camera}
-                facing="front"
-              />
+              <Text style={styles.cameraAreaText}>
+                Camera area
+              </Text>
 
-              <View style={styles.cameraOverlay}>
-                <Text style={styles.overlayText}>
-                  Your camera is live
-                </Text>
-              </View>
+              <Text style={styles.testText}>
+                Web interface is working.
+              </Text>
             </View>
 
             <Pressable
               onPress={() => setStarted(false)}
               style={styles.secondaryButton}
             >
-              <Text style={styles.secondaryText}>Stop Camera</Text>
+              <Text style={styles.secondaryText}>
+                Stop Camera
+              </Text>
             </Pressable>
 
           </View>
@@ -111,7 +99,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-
   safe: {
     flex: 1,
     backgroundColor: '#fff',
@@ -249,29 +236,20 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#111827',
-  },
-
-  camera: {
-    flex: 1,
-    width: '100%',
-  },
-
-  cameraOverlay: {
-    position: 'absolute',
-    bottom: 18,
-    left: 18,
-    right: 18,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  overlayText: {
+  cameraAreaText: {
     color: '#fff',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 20,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+
+  testText: {
+    color: '#d0d5dd',
+    fontSize: 15,
+    marginTop: 10,
   },
 
   secondaryButton: {
@@ -294,5 +272,4 @@ const styles = StyleSheet.create({
     color: '#98a2b3',
     fontSize: 12,
   },
-
 });
