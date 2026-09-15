@@ -327,13 +327,15 @@ wss.on("connection", socket => {
         return;
       }
 
+      const wasEmpty = room.size === 0;
       addToRoom(code, socket);
 
       socket.send(
         JSON.stringify({
           type: "joined-room",
           code,
-          participants: room.size
+          participants: room.size,
+          role: wasEmpty ? "initiator" : "receiver"
         })
       );
 
@@ -343,7 +345,8 @@ wss.on("connection", socket => {
             client.send(
               JSON.stringify({
                 type: "peer-ready",
-                code
+                code,
+                initiator: client === socket ? false : wasEmpty
               })
             );
           }
