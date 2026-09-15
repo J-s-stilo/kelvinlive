@@ -82,7 +82,8 @@ const DEFAULT_DB = {
   gallery: [],
   jobs: [],
   recordings: [],
-  avatars: []
+  avatars: [],
+  voices: []
 };
 
 function loadDB() {
@@ -203,6 +204,14 @@ function publicAssetUrl(type, filename) {
   return `/media/${type}/${encodeURIComponent(safe)}`;
 }
 
+function publicAbsoluteUrl(relativeUrl) {
+  if (!relativeUrl) return null;
+  if (/^https?:\/\//i.test(relativeUrl)) return relativeUrl;
+  const base = clean(process.env.PUBLIC_BASE_URL, 500).replace(/\/+$/, '');
+  if (!base) return null;
+  return `${base}${relativeUrl.startsWith('/') ? '' : '/'}${relativeUrl}`;
+}
+
 function sendJSON(res, status, data) {
   const body = JSON.stringify(data);
 
@@ -309,7 +318,10 @@ function contentTypeForFile(file) {
     '.webm': 'video/webm',
     '.mov': 'video/quicktime',
     '.mp3': 'audio/mpeg',
-    '.wav': 'audio/wav'
+    '.wav': 'audio/wav',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.ogg': 'audio/ogg'
   };
 
   return map[ext] || 'application/octet-stream';
@@ -499,7 +511,7 @@ const ENGINES = {
     provider:
       process.env.IMAGE_EDIT_PROVIDER ||
       process.env.IMAGE_PROVIDER ||
-      'custom',
+      (process.env.OPENAI_API_KEY ? 'openai' : 'custom'),
 
     url:
       process.env.IMAGE_EDIT_API_URL ||
@@ -516,6 +528,21 @@ const ENGINES = {
       process.env.IMAGE_EDIT_MODEL ||
       process.env.IMAGE_MODEL ||
       'gpt-image-2'
+  },
+
+  voice: {
+    provider: process.env.VOICE_PROVIDER || 'elevenlabs',
+    key: process.env.ELEVENLABS_API_KEY || process.env.VOICE_API_KEY || '',
+    model: process.env.VOICE_MODEL || 'eleven_v3',
+    cloneModel: process.env.VOICE_CLONE_MODEL || 'instant'
+  },
+
+  runway: {
+    provider: process.env.VIDEO_PROVIDER || 'runway',
+    key: process.env.RUNWAYML_API_SECRET || process.env.VIDEO_API_KEY || '',
+    model: process.env.VIDEO_MODEL || 'gen4.5',
+    baseUrl: process.env.RUNWAY_API_BASE_URL || 'https://api.dev.runwayml.com/v1',
+    version: process.env.RUNWAY_API_VERSION || '2024-11-06'
   }
 };
 
@@ -530,7 +557,7 @@ function engineStatus(engine) {
   }
 
   const configured =
-    engine === 'image'
+    engine === 'image' || engine === 'voice' || engine === 'runway'
       ? Boolean(config.key)
       : Boolean(config.url && config.key);
 
@@ -550,7 +577,9 @@ function engineSummary() {
     video: engineStatus('video'),
     talkingAvatar: engineStatus('talkingAvatar'),
     avatarReplace: engineStatus('avatarReplace'),
-    imageEdit: engineStatus('imageEdit')
+    imageEdit: engineStatus('imageEdit'),
+    voice: engineStatus('voice'),
+    runway: engineStatus('runway')
   };
 }
 
@@ -707,91 +736,166 @@ async function downloadToGallery(
    OPENAI IMAGE GENERATION
 ------------------------------------------------------- */
 
-async function openAIImageGenerate({
-  prompt,
-  size = '1024x1024',
-  quality = 'auto',
-  userId = null
-}) {
+async function openAIRequest(pathname, body) {
   if (!process.env.OPENAI_API_KEY) {
-    const error = new Error(
-      'OPENAI_API_KEY is not configured'
-    );
-
+    const error = new Error('OPENAI_API_KEY is not configured');
     error.statusCode = 503;
     throw error;
   }
 
   const response = await fetchWithTimeout(
-    'https://api.openai.com/v1/images/generations',
+    `https://api.openai.com/v1/${pathname.replace(/^\//, '')}`,
     {
       method: 'POST',
-
       headers: {
         'Content-Type': 'application/json',
-        Authorization:
-          `Bearer ${process.env.OPENAI_API_KEY}`
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
-
-      body: JSON.stringify({
-        model:
-          ENGINES.image.model ||
-          'gpt-image-2',
-
-        prompt: clean(prompt, 10000),
-
-        size,
-
-        quality
-      })
+      body: JSON.stringify(body)
     }
   );
+  return parseProviderResponse(response);
+}
 
-  const data =
-    await parseProviderResponse(response);
+async function openAIImageGenerate({ prompt, size = '1024x1024', quality = 'auto', userId = null }) {
+  const data = await openAIRequest('images/generations', {
+    model: ENGINES.image.model || 'gpt-image-2',
+    prompt: clean(prompt, 10000),
+    size,
+    quality
+  });
+  const item = Array.isArray(data.data) ? data.data[0] : null;
+  if (!item) throw new Error('Image provider returned no image');
+  if (item.b64_json) return saveBufferToGallery(Buffer.from(item.b64_json, 'base64'), 'image/png', {type:'image', prompt, source:'openai', userId});
+  if (item.url) return downloadToGallery(item.url, {type:'image', prompt, source:'openai', userId});
+  throw new Error('Image provider returned an unsupported result');
+}
 
-  const item =
-    Array.isArray(data.data)
-      ? data.data[0]
-      : null;
+async function openAIImageEdit({ prompt, imageDataUrl, size = '1024x1024', quality = 'auto', userId = null }) {
+  if (!process.env.OPENAI_API_KEY) {
+    const error = new Error('OPENAI_API_KEY is not configured');
+    error.statusCode = 503;
+    throw error;
+  }
+  const parsed = parseDataUrl(imageDataUrl);
+  const form = new FormData();
+  form.append('model', ENGINES.imageEdit.model || 'gpt-image-2');
+  form.append('prompt', clean(prompt, 10000));
+  form.append('size', size);
+  form.append('quality', quality);
+  form.append('image[]', new Blob([parsed.data], { type: parsed.mime }), 'source' + extensionForMime(parsed.mime));
 
-  if (!item) {
-    throw new Error(
-      'Image provider returned no image'
-    );
+  const response = await fetchWithTimeout('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: form
+  });
+  const data = await parseProviderResponse(response);
+  const item = Array.isArray(data.data) ? data.data[0] : null;
+  if (!item) throw new Error('Image edit provider returned no image');
+  if (item.b64_json) return saveBufferToGallery(Buffer.from(item.b64_json, 'base64'), 'image/png', {type:'image', prompt, source:'openai-edit', userId});
+  if (item.url) return downloadToGallery(item.url, {type:'image', prompt, source:'openai-edit', userId});
+  throw new Error('Image edit provider returned an unsupported result');
+}
+
+async function runwaySubmit(pathname, payload) {
+  const cfg = ENGINES.runway;
+  if (!cfg.key) {
+    const error = new Error('RUNWAYML_API_SECRET is not configured');
+    error.statusCode = 503;
+    throw error;
+  }
+  const response = await fetchWithTimeout(`${cfg.baseUrl}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${cfg.key}`,
+      'X-Runway-Version': cfg.version
+    },
+    body: JSON.stringify(payload)
+  });
+  return parseProviderResponse(response);
+}
+
+async function runwayPoll(taskId) {
+  const cfg = ENGINES.runway;
+  const response = await fetchWithTimeout(`${cfg.baseUrl}/tasks/${encodeURIComponent(taskId)}`, {
+    headers: {
+      Authorization: `Bearer ${cfg.key}`,
+      'X-Runway-Version': cfg.version
+    }
+  });
+  return parseProviderResponse(response);
+}
+
+async function runRunwayVideoJob(job, payload) {
+  const image = payload.image || payload.imageDataUrl || null;
+  let promptImage = null;
+  if (image) {
+    if (/^data:/i.test(image)) {
+      const parsed = parseDataUrl(image);
+      const item = saveBufferToGallery(parsed.data, parsed.mime, { type: parsed.mime.startsWith('video/') ? 'video' : 'image', userId: job.userId, source: 'input' });
+      promptImage = publicAbsoluteUrl(item.url);
+    } else {
+      promptImage = publicAbsoluteUrl(image);
+    }
+    if (!promptImage) throw new Error('PUBLIC_BASE_URL is required for Runway image/video inputs');
   }
 
-  if (item.b64_json) {
-    const buffer =
-      Buffer.from(item.b64_json, 'base64');
+  const ratio = payload.aspectRatio || '1280:720';
+  const duration = Number(payload.duration || 5);
+  const body = {
+    model: ENGINES.runway.model || 'gen4.5',
+    promptText: clean(payload.prompt, 10000),
+    ratio,
+    duration
+  };
+  if (promptImage) body.promptImage = promptImage;
 
-    return saveBufferToGallery(
-      buffer,
-      'image/png',
-      {
-        type: 'image',
-        prompt,
-        source: 'openai',
-        userId
-      }
-    );
+  const submitted = await runwaySubmit('/image_to_video', body);
+  const providerJobId = extractProviderJobId(submitted);
+  if (!providerJobId) {
+    const immediate = providerResult(submitted);
+    if (immediate) return materializeProviderResult(immediate, job);
+    throw new Error('Runway did not return a task ID');
   }
 
-  if (item.url) {
-    return await downloadToGallery(
-      item.url,
-      {
-        type: 'image',
-        prompt,
-        source: 'openai',
-        userId
-      }
-    );
+  updateJob(job, { providerJobId, progress: 15 });
+  const started = Date.now();
+  while (Date.now() - started < JOB_TIMEOUT_MS) {
+    await new Promise(r => setTimeout(r, JOB_POLL_MS));
+    const polled = await runwayPoll(providerJobId);
+    const status = extractProviderStatus(polled);
+    const result = providerResult(polled);
+    if (result) return materializeProviderResult(result, job);
+    if (['failed','error','cancelled','canceled'].includes(status)) throw new Error(polled?.failure || polled?.error?.message || 'Runway generation failed');
+    updateJob(job, { status:'processing', progress: Math.min(95, Math.max(20, Number(polled?.progress || 0))) });
   }
+  throw new Error('Runway generation timed out');
+}
 
-  throw new Error(
-    'Image provider returned an unsupported result'
-  );
+async function elevenLabsTTS({ text, voiceId, userId = null }) {
+  if (!ENGINES.voice.key) { const e = new Error('ELEVENLABS_API_KEY is not configured'); e.statusCode=503; throw e; }
+  if (!voiceId) throw new Error('voiceId is required');
+  const response = await fetchWithTimeout(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
+    method:'POST', headers:{'Content-Type':'application/json','xi-api-key':ENGINES.voice.key},
+    body:JSON.stringify({text:clean(text,20000),model_id:ENGINES.voice.model || 'eleven_v3'})
+  });
+  if (!response.ok) { const t=await response.text(); throw new Error(`ElevenLabs TTS failed: HTTP ${response.status} ${t.slice(0,500)}`); }
+  const buf=Buffer.from(await response.arrayBuffer());
+  return saveBufferToGallery(buf,'audio/mpeg',{type:'audio',source:'elevenlabs',userId,title:'Generated speech'});
+}
+
+async function elevenLabsClone({ name, audioDataUrl, userId = null }) {
+  if (!ENGINES.voice.key) { const e = new Error('ELEVENLABS_API_KEY is not configured'); e.statusCode=503; throw e; }
+  const parsed=parseDataUrl(audioDataUrl);
+  const form=new FormData();
+  form.append('name', clean(name,100) || 'My Voice');
+  form.append('files', new Blob([parsed.data],{type:parsed.mime}), 'voice' + extensionForMime(parsed.mime));
+  const response=await fetchWithTimeout('https://api.elevenlabs.io/v1/voices/add', {method:'POST',headers:{'xi-api-key':ENGINES.voice.key},body:form});
+  const data=await parseProviderResponse(response);
+  const voice={id:id('voice'),userId,name:clean(name,100)||'My Voice',voiceId:data.voice_id,provider:'elevenlabs',createdAt:now()};
+  db.voices.unshift(voice); saveDB(); return voice;
 }
 
 /* -------------------------------------------------------
@@ -871,7 +975,9 @@ function providerResult(data) {
     data?.data?.url,
     data?.data?.[0]?.url,
     data?.output?.[0]?.url,
-    data?.result?.[0]?.url
+    data?.output?.[0],
+    data?.result?.[0]?.url,
+    data?.result?.[0]
   ];
 
   const url =
@@ -1113,6 +1219,27 @@ async function runProviderJob(
         completedAt: now()
       });
 
+      return job;
+    }
+
+    if (
+      job.engine === 'imageEdit' &&
+      ENGINES.imageEdit.provider === 'openai'
+    ) {
+      const galleryItem = await openAIImageEdit({
+        prompt: submitPayload.prompt,
+        imageDataUrl: submitPayload.imageDataUrl || submitPayload.image,
+        size: submitPayload.size || '1024x1024',
+        quality: submitPayload.quality || 'auto',
+        userId: job.userId
+      });
+      updateJob(job,{status:'completed',progress:100,output:galleryItem,completedAt:now()});
+      return job;
+    }
+
+    if (job.engine === 'video' && ENGINES.video.provider === 'runway') {
+      const galleryItem = await runRunwayVideoJob(job, submitPayload);
+      updateJob(job,{status:'completed',progress:100,output:galleryItem,completedAt:now()});
       return job;
     }
 
@@ -2183,6 +2310,42 @@ async function handleRequest(req, res) {
         job
       });
 
+      return;
+    }
+
+    /* ---------------- VOICE ---------------- */
+
+    if (req.method === 'GET' && pathname === '/api/ai/voices') {
+      const user = getUserFromRequest(req);
+      const voices = db.voices.filter(v => !v.userId || !user || v.userId === user.id);
+      sendJSON(res, 200, { ok:true, voices });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/ai/voice/clone') {
+      const body = await readJSON(req);
+      const user = getUserFromRequest(req);
+      if (!body.audioDataUrl) { sendJSON(res,400,{ok:false,error:'Voice recording is required'}); return; }
+      if (body.authorized !== true) { sendJSON(res,403,{ok:false,error:'Authorization is required to create a voice clone'}); return; }
+      const voice = await elevenLabsClone({name:body.name,audioDataUrl:body.audioDataUrl,userId:user?.id||body.userId||null});
+      sendJSON(res,201,{ok:true,voice});
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/ai/voice/speech') {
+      const body = await readJSON(req);
+      const user = getUserFromRequest(req);
+      if (!body.text || !body.voiceId) { sendJSON(res,400,{ok:false,error:'text and voiceId are required'}); return; }
+      const audio = await elevenLabsTTS({text:body.text,voiceId:body.voiceId,userId:user?.id||body.userId||null});
+      sendJSON(res,201,{ok:true,audio});
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/ai/voice/library') {
+      if (!ENGINES.voice.key) { sendJSON(res,503,{ok:false,error:'ELEVENLABS_API_KEY is not configured'}); return; }
+      const response=await fetchWithTimeout('https://api.elevenlabs.io/v2/voices',{headers:{'xi-api-key':ENGINES.voice.key}});
+      const data=await parseProviderResponse(response);
+      sendJSON(res,200,{ok:true,voices:data.voices||[]});
       return;
     }
 
