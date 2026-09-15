@@ -46,16 +46,17 @@ function sendFile(res, filePath) {
 }
 
 /*
- * This is the second Kelvin Live interface.
- * It follows the same interface and functions used in App.js:
- * Start Camera -> Camera Preview -> Stop Camera
+ * Kelvin Live camera interface
  */
 function sendAppInterface(res) {
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
   <title>Kelvin Live</title>
 
@@ -67,7 +68,6 @@ function sendAppInterface(res) {
     html,
     body {
       margin: 0;
-      width: 100%;
       min-height: 100%;
       font-family: Arial, sans-serif;
       background: #ffffff;
@@ -219,10 +219,28 @@ function sendAppInterface(res) {
       border-radius: 24px;
       overflow: hidden;
       background: #111827;
+      position: relative;
+    }
+
+    #cameraVideo {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      transform: scaleX(-1);
+      background: #111827;
+    }
+
+    .cameraMessage {
+      position: absolute;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      text-align: center;
+      pointer-events: none;
+      padding: 20px;
     }
 
     .cameraAreaText {
@@ -235,6 +253,14 @@ function sendAppInterface(res) {
       color: #d0d5dd;
       font-size: 15px;
       margin-top: 10px;
+    }
+
+    .errorText {
+      color: #ffffff;
+      font-size: 15px;
+      margin-top: 10px;
+      max-width: 280px;
+      line-height: 22px;
     }
 
     .secondaryButton {
@@ -280,6 +306,7 @@ function sendAppInterface(res) {
 <body>
 
 <div class="safe">
+
   <div class="container">
 
     <div id="startScreen" class="center">
@@ -288,7 +315,9 @@ function sendAppInterface(res) {
         <div class="logoK">K</div>
       </div>
 
-      <h1 class="title">Kelvin Live</h1>
+      <h1 class="title">
+        Kelvin Live
+      </h1>
 
       <div class="subtitle">
         Real-time avatar video technology
@@ -324,23 +353,37 @@ function sendAppInterface(res) {
         </div>
 
         <div class="liveBadge">
+
           <div class="dot"></div>
 
           <div class="liveText">
             LIVE
           </div>
+
         </div>
 
       </div>
 
       <div class="cameraFrame">
 
-        <div class="cameraAreaText">
-          Camera area
-        </div>
+        <video
+          id="cameraVideo"
+          autoplay
+          playsinline
+          muted
+        ></video>
 
-        <div class="testText">
-          Web interface is working.
+        <div
+          id="cameraMessage"
+          class="cameraMessage"
+        >
+          <div class="cameraAreaText">
+            Camera area
+          </div>
+
+          <div class="testText">
+            Starting camera...
+          </div>
         </div>
 
       </div>
@@ -363,31 +406,132 @@ function sendAppInterface(res) {
     </div>
 
   </div>
+
 </div>
 
 <script>
-  function startCamera() {
-    document.getElementById('startScreen').style.display = 'none';
-    document.getElementById('cameraScreen').style.display = 'flex';
-    document.getElementById('footer').style.display = 'none';
+  let cameraStream = null;
+
+  async function startCamera() {
+
+    const startScreen =
+      document.getElementById('startScreen');
+
+    const cameraScreen =
+      document.getElementById('cameraScreen');
+
+    const footer =
+      document.getElementById('footer');
+
+    const video =
+      document.getElementById('cameraVideo');
+
+    const message =
+      document.getElementById('cameraMessage');
+
+    startScreen.style.display = 'none';
+    cameraScreen.style.display = 'flex';
+    footer.style.display = 'none';
+
+    message.style.display = 'flex';
+
+    try {
+
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+
+        throw new Error(
+          'Camera access is not supported by this browser.'
+        );
+      }
+
+      cameraStream =
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user'
+          },
+          audio: false
+        });
+
+      video.srcObject = cameraStream;
+
+      message.style.display = 'none';
+
+      await video.play();
+
+    } catch (error) {
+
+      console.error(
+        'Kelvin Live camera error:',
+        error
+      );
+
+      message.style.display = 'flex';
+
+      message.innerHTML = \`
+        <div class="cameraAreaText">
+          Camera unavailable
+        </div>
+
+        <div class="errorText">
+          Please allow camera permission
+          in your browser and try again.
+        </div>
+      \`;
+    }
   }
 
   function stopCamera() {
-    document.getElementById('cameraScreen').style.display = 'none';
-    document.getElementById('startScreen').style.display = 'flex';
-    document.getElementById('footer').style.display = 'block';
+
+    if (cameraStream) {
+
+      cameraStream
+        .getTracks()
+        .forEach(function(track) {
+          track.stop();
+        });
+
+      cameraStream = null;
+    }
+
+    const video =
+      document.getElementById('cameraVideo');
+
+    video.srcObject = null;
+
+    document.getElementById(
+      'cameraScreen'
+    ).style.display = 'none';
+
+    document.getElementById(
+      'startScreen'
+    ).style.display = 'flex';
+
+    document.getElementById(
+      'footer'
+    ).style.display = 'block';
   }
 
   function initializeKelvinLiveApp() {
-    const startButton = document.getElementById('startCamera');
-    const stopButton = document.getElementById('stopCamera');
+
+    const startButton =
+      document.getElementById('startCamera');
+
+    const stopButton =
+      document.getElementById('stopCamera');
 
     if (startButton) {
-      startButton.addEventListener('click', startCamera);
+      startButton.addEventListener(
+        'click',
+        startCamera
+      );
     }
 
     if (stopButton) {
-      stopButton.addEventListener('click', stopCamera);
+      stopButton.addEventListener(
+        'click',
+        stopCamera
+      );
     }
   }
 
@@ -410,6 +554,7 @@ function sendAppInterface(res) {
 const server = http.createServer((req, res) => {
 
   if (req.url === '/health') {
+
     res.writeHead(200, {
       'Content-Type': 'application/json',
     });
@@ -423,7 +568,7 @@ const server = http.createServer((req, res) => {
   }
 
   /*
-   * Get Started from web/index.html opens /app/
+   * Open the second Kelvin Live interface.
    */
   if (
     req.url === '/app' ||
@@ -433,106 +578,144 @@ const server = http.createServer((req, res) => {
     return sendAppInterface(res);
   }
 
-  let requestPath = decodeURIComponent(
-    req.url.split('?')[0]
-  );
+  let requestPath =
+    decodeURIComponent(
+      req.url.split('?')[0]
+    );
 
   if (requestPath === '/') {
     requestPath = '/index.html';
   }
 
-  const requestedFile = path.join(
-    DIST_DIR,
-    requestPath
-  );
+  const requestedFile =
+    path.join(
+      DIST_DIR,
+      requestPath
+    );
 
-  const safePath = path.normalize(requestedFile);
-  const normalizedDist = path.normalize(DIST_DIR);
+  const safePath =
+    path.normalize(requestedFile);
+
+  const normalizedDist =
+    path.normalize(DIST_DIR);
 
   if (
     safePath !== normalizedDist &&
-    !safePath.startsWith(normalizedDist + path.sep)
+    !safePath.startsWith(
+      normalizedDist + path.sep
+    )
   ) {
+
     res.writeHead(403, {
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type':
+        'text/plain; charset=utf-8',
     });
 
     return res.end('Forbidden');
   }
 
-  fs.stat(safePath, (error, stats) => {
-    if (!error && stats.isFile()) {
-      return sendFile(res, safePath);
-    }
+  fs.stat(
+    safePath,
+    (error, stats) => {
 
-    const indexFile = path.join(
-      DIST_DIR,
-      'index.html'
-    );
-
-    fs.access(
-      indexFile,
-      fs.constants.F_OK,
-      (indexError) => {
-        if (!indexError) {
-          return sendFile(res, indexFile);
-        }
-
-        res.writeHead(404, {
-          'Content-Type': 'text/plain; charset=utf-8',
-        });
-
-        res.end(
-          'Kelvin Live web build not found.'
+      if (!error && stats.isFile()) {
+        return sendFile(
+          res,
+          safePath
         );
       }
-    );
-  });
+
+      const indexFile =
+        path.join(
+          DIST_DIR,
+          'index.html'
+        );
+
+      fs.access(
+        indexFile,
+        fs.constants.F_OK,
+        (indexError) => {
+
+          if (!indexError) {
+            return sendFile(
+              res,
+              indexFile
+            );
+          }
+
+          res.writeHead(404, {
+            'Content-Type':
+              'text/plain; charset=utf-8',
+          });
+
+          res.end(
+            'Kelvin Live web build not found.'
+          );
+        }
+      );
+    }
+  );
 });
 
 /*
- * WebSocket signaling server for future WebRTC calling.
+ * WebSocket signaling server
+ * for future WebRTC functionality.
  */
-const wss = new WebSocketServer({ server });
+const wss =
+  new WebSocketServer({
+    server,
+  });
 
-wss.on('connection', (socket) => {
+wss.on(
+  'connection',
+  (socket) => {
 
-  socket.send(
-    JSON.stringify({
-      type: 'connected',
-      service: 'kelvinlive',
-    })
-  );
+    socket.send(
+      JSON.stringify({
+        type: 'connected',
+        service: 'kelvinlive',
+      })
+    );
 
-  socket.on('message', (raw) => {
+    socket.on(
+      'message',
+      (raw) => {
 
-    let message;
+        let message;
 
-    try {
-      message = JSON.parse(
-        raw.toString()
-      );
-    } catch {
-      return;
-    }
+        try {
+          message =
+            JSON.parse(
+              raw.toString()
+            );
+        } catch {
+          return;
+        }
 
-    wss.clients.forEach((client) => {
+        wss.clients.forEach(
+          (client) => {
 
-      if (
-        client !== socket &&
-        client.readyState === 1
-      ) {
-        client.send(
-          JSON.stringify(message)
+            if (
+              client !== socket &&
+              client.readyState === 1
+            ) {
+              client.send(
+                JSON.stringify(message)
+              );
+            }
+
+          }
         );
       }
+    );
+  }
+);
 
-    });
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(
-    `Kelvin Live server listening on port ${PORT}`
-  );
-});
+server.listen(
+  PORT,
+  () => {
+    console.log(
+      `Kelvin Live server listening on port ${PORT}`
+    );
+  }
+);
