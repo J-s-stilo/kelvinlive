@@ -102,7 +102,23 @@
     document.getElementById("getStarted").addEventListener("click", function () {
       alert("Welcome to Kelvin Live!");
     });
-  </script>
+    <script>
+  function startKelvinLive() {
+    window.location.href = "/app/";
+  }
 
+  function initializeKelvinLive() {
+    const getStartedButton = document.getElementById("getStarted");
+
+    if (!getStartedButton) {
+      return;
+    }
+
+    getStartedButton.addEventListener("click", startKelvinLive);
+  }
+
+  document.addEventListener("DOMContentLoaded", initializeKelvinLive);
+</script>
+  
 </body>
 </html>
