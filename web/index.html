@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelvin Live</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 500px;
+      padding: 30px 24px;
+      text-align: center;
+    }
+
+    .logo {
+      width: 90px;
+      height: 90px;
+      margin: 0 auto 24px;
+      border-radius: 50%;
+      background: #fff;
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 38px;
+    }
+
+    .subtitle {
+      margin: 0 0 35px;
+      font-size: 18px;
+      color: #ccc;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 16px 32px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #fff;
+      color: #000;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .footer {
+      margin-top: 60px;
+      font-size: 13px;
+      color: #888;
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="container">
+
+    <div class="logo">K</div>
+
+    <h1>Kelvin Live</h1>
+
+    <p class="subtitle">
+      Real-time avatar video technology
+    </p>
+
+    <button id="getStarted">
+      Get Started
+    </button>
+
+    <div class="footer">
+      Kelvin Live
+    </div>
+
+  </main>
+
+  <script>
+    document.getElementById("getStarted").addEventListener("click", function () {
+      alert("Welcome to Kelvin Live!");
+    });
+  </script>
+
+</body>
+</html>
