@@ -961,6 +961,18 @@ padding-right:12px}
 <textarea id="videoPrompt" class="input" rows="4" placeholder="Tell Kelvin exactly what should happen… e.g. make the person speak, move, smile, turn, or perform an action.">
 </textarea>
 <input id="videoAudio" type="file" accept="audio/*" class="input">
+<div class="card" style="margin-top:12px;padding:14px">
+  <strong>Kelvin Voice</strong>
+  <p class="small">Use a built-in voice or create your own authorized voice clone.</p>
+  <select id="voiceSelect" class="input"><option value="">Loading voices…</option></select>
+  <div class="row" style="margin-top:8px">
+    <button class="btn secondary" type="button" onclick="startVoiceRecording()" id="voiceRecordStart">Record My Voice</button>
+    <button class="btn secondary" type="button" onclick="stopVoiceRecording()" id="voiceRecordStop" disabled>Stop</button>
+  </div>
+  <input id="voiceName" class="input" placeholder="Voice name" style="margin-top:8px">
+  <button class="btn secondary" type="button" onclick="cloneRecordedVoice()" id="voiceCloneBtn" disabled>Save My Voice</button>
+  <div id="voiceStatus" class="small" style="margin-top:8px">Voice system ready.</div>
+</div>
 <button class="btn" onclick="generateVideo()">Generate Video</button>
 <div id="videoEngine" class="engine hidden">
 <div class="engine-head">
@@ -1119,7 +1131,7 @@ padding-right:12px}
 <div id="toast" class="toast">
 </div>
 <script>
-const state={authMode:'login',selectedAvatar:localStorage.kelvinSelectedAvatar||'default-1',avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:localStorage.kelvinFacing||'user',seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],recordStream:null,videoMode:'image-to-video',lastGenerated:null,lastReplacement:null,avatarPreview:true,faceLoop:null,recordingSource:'camera',authToken:localStorage.kelvinAuthToken||'',serverGallery:[],serverAvatarSession:null};
+const state={authMode:'login',selectedAvatar:localStorage.kelvinSelectedAvatar||'default-1',avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:localStorage.kelvinFacing||'user',seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],recordStream:null,videoMode:'image-to-video',lastGenerated:null,lastReplacement:null,avatarPreview:true,faceLoop:null,recordingSource:'camera',authToken:localStorage.kelvinAuthToken||'',serverGallery:[],serverAvatarSession:null,voices:[],voiceRecorder:null,voiceChunks:[],recordedVoiceDataUrl:null};
 const rtcConfig={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const $=id=>document.getElementById(id);
 function toast(m){const e=$('toast');e.textContent=m;e.style.display='block';clearTimeout(window._toast);window._toast=setTimeout(()=>e.style.display='none',3200)}
@@ -1194,6 +1206,8 @@ async function login(){
     const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:v.name||v.email.split('@')[0],email:v.email,password:v.password,remember:!!$('rememberInput')?.checked})});
     if(response.ok){
       const data=await response.json().catch(()=>({}));
+      state.authToken=data.token||'';
+      if(state.authToken)localStorage.kelvinAuthToken=state.authToken;
       localStorage.kelvinUserName=data.user?.name||v.name||v.email.split('@')[0];
       localStorage.kelvinUserEmail=data.user?.email||v.email;
       localStorage.kelvinAuthMode='server';
@@ -1351,7 +1365,7 @@ function startRecording(){const s=$('recordPreview').srcObject||state.recordStre
 function stopRecording(){if(state.recording?.state==='recording'){state.recording.stop();$('recordStart').disabled=false}}
 function setVideoMode(el,m){state.videoMode=m;document.querySelectorAll('#generateVideo .tab').forEach(x=>x.classList.remove('active'));el.classList.add('active')}
 async function fileData(input){const f=input?.files?.[0];if(!f)return null;return{name:f.name,type:f.type,size:f.size,data:await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=rej;rd.readAsDataURL(f)})}}
-async function apiJSON(url,body,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(state.authToken)headers.Authorization='Bearer '+state.authToken;const r=await fetch(url,{method:options.method||'POST',headers,body:JSON.stringify(body)});const d=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(r.status===401&&state.authToken){state.authToken='';localStorage.removeItem('kelvinAuthToken');toast('Your server session expired. Please sign in again.');throw Error('Authentication required')}if(!r.ok||d.ok===false)throw Error(d.error||'Request failed');return d}
+async function apiJSON(url,body,options={}){const method=options.method||'POST';const headers={...(method==='GET'?{}:{'Content-Type':'application/json'}),...(options.headers||{})};if(state.authToken)headers.Authorization='Bearer '+state.authToken;const request={method,headers};if(method!=='GET'&&method!=='HEAD')request.body=JSON.stringify(body||{});const r=await fetch(url,request);const d=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(r.status===401&&state.authToken){state.authToken='';localStorage.removeItem('kelvinAuthToken');toast('Your server session expired. Please sign in again.');throw Error('Authentication required')}if(!r.ok||d.ok===false)throw Error(d.error||'Request failed');return d}
 function engineUI(kind,text,p,msg){const box=$(kind+'Engine');box.classList.remove('hidden');$(kind+'EngineState').textContent=text;$(kind+'Progress').style.width=p+'%';$(kind+'EngineMessage').textContent=msg}
 async function waitJob(id,kind,onResult){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));try{const r=await fetch('/api/jobs/'+encodeURIComponent(id),{headers:state.authToken?{Authorization:'Bearer '+state.authToken}:{}});const d=await r.json();const j=d.job||d;if(j.progress!=null)engineUI(kind,j.status||'Processing',Math.max(5,Math.min(99,j.progress)),j.message||'Processing…');if(['completed','complete','succeeded'].includes(String(j.status).toLowerCase())){onResult(j.result||j);return}if(['failed','error','cancelled'].includes(String(j.status).toLowerCase()))throw Error(j.error||j.message||'Generation failed')}catch(e){throw e}}throw Error('Generation timed out')}
 function resultURL(r){return r?.url||r?.data||r?.output?.url||r?.output?.data||r}
@@ -1370,6 +1384,34 @@ async function generateImage(){
     engineUI('image','Complete',100,ref?'Image edit completed by the configured engine.':'Image generated by the configured engine.');syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
   }catch(e){engineUI('image','Failed',100,e.message);toast(e.message)}
 }
+async function loadVoices(){
+  const select=$('voiceSelect'); if(!select)return;
+  try{
+    const d=await apiJSON('/api/ai/voices',{},{method:'GET'});
+    state.voices=d.voices||[];
+    select.innerHTML='<option value="">Select voice</option>'+state.voices.map(v=>`<option value="${escAttr(v.voiceId||v.id||'')}">${esc(v.name||'Voice')}</option>`).join('');
+    try{const lib=await apiJSON('/api/ai/voice/library',{},{method:'GET'});(lib.voices||[]).forEach(v=>{if(!state.voices.some(x=>(x.voiceId||x.id)===v.voice_id)){state.voices.push({voiceId:v.voice_id,name:v.name||'Library voice'});}});select.innerHTML='<option value="">Select voice</option>'+state.voices.map(v=>`<option value="${escAttr(v.voiceId||v.id||'')}">${esc(v.name||'Voice')}</option>`).join('');}catch{}
+  }catch(e){if(select)select.innerHTML='<option value="">Voice provider not configured</option>';if($('voiceStatus'))$('voiceStatus').textContent=e.message||'Voice service unavailable'}
+}
+async function startVoiceRecording(){
+  if(!navigator.mediaDevices?.getUserMedia)return toast('Microphone is not available');
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    state.voiceChunks=[];state.voiceRecorder=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':undefined});
+    state.voiceRecorder.ondataavailable=e=>e.data.size&&state.voiceChunks.push(e.data);
+    state.voiceRecorder.onstop=()=>{const blob=new Blob(state.voiceChunks,{type:state.voiceRecorder.mimeType||'audio/webm'});const rd=new FileReader();rd.onload=()=>{state.recordedVoiceDataUrl=rd.result;$('voiceCloneBtn').disabled=false;$('voiceStatus').textContent='Voice recorded. Tap Save My Voice to create the clone.'};rd.readAsDataURL(blob);stream.getTracks().forEach(t=>t.stop());};
+    state.voiceRecorder.start(250);$('voiceRecordStart').disabled=true;$('voiceRecordStop').disabled=false;$('voiceStatus').textContent='Recording your voice…';
+  }catch(e){toast(e.message||'Microphone permission required')}
+}
+function stopVoiceRecording(){if(state.voiceRecorder?.state==='recording'){state.voiceRecorder.stop();$('voiceRecordStart').disabled=false;$('voiceRecordStop').disabled=true}}
+async function cloneRecordedVoice(){
+  if(!state.recordedVoiceDataUrl)return toast('Record your voice first');
+  const name=($('voiceName')?.value||'My Voice').trim();
+  if(!name)return toast('Enter a voice name');
+  $('voiceStatus').textContent='Creating your authorized voice clone…';
+  try{const d=await apiJSON('/api/ai/voice/clone',{name,audioDataUrl:state.recordedVoiceDataUrl,authorized:true,consent:true});state.voices.unshift(d.voice);await loadVoices();$('voiceSelect').value=d.voice.voiceId;state.recordedVoiceDataUrl=null;$('voiceCloneBtn').disabled=true;$('voiceStatus').textContent='Your voice is ready.';toast('Your voice was saved');}catch(e){$('voiceStatus').textContent=e.message;toast(e.message)}
+}
+
 async function generateVideo(){
   const media=await fileData($('videoImage')),audio=await fileData($('videoAudio')),prompt=$('videoPrompt').value.trim(),avatar=avatarById();
   if(media && !$('videoConsent').checked){
@@ -1379,10 +1421,10 @@ async function generateVideo(){
   if(!media&&!prompt)return toast('Choose media or enter a generation prompt first');
   engineUI('video','Queued',5,'Sending request to the configured video engine…');
   try{
-    let endpoint='/api/ai/video',body={mode:state.videoMode,prompt,audioDataUrl:audio?.data||null};
+    let endpoint='/api/ai/video',body={mode:state.videoMode,prompt,audioDataUrl:audio?.data||null,voiceId:$('voiceSelect')?.value||null};
     if(state.videoMode==='talking-avatar'){
       endpoint='/api/ai/talking-avatar';
-      body={prompt:prompt||'Animate this authorized avatar.',avatarImage:avatar?.src||null,audioDataUrl:audio?.data||null,authorized:true,consent:true};
+      body={prompt:prompt||'Animate this authorized avatar.',avatarImage:avatar?.src||null,audioDataUrl:audio?.data||null,voiceId:$('voiceSelect')?.value||null,authorized:true,consent:true};
       if(!body.avatarImage)return toast('Choose an uploaded avatar before using Talking Avatar.');
     }else if(state.videoMode==='video-avatar'){
       endpoint='/api/ai/replace';
@@ -1435,7 +1477,7 @@ async function startAvatarSession(){
 function getPrivacy(){return $('localSaveToggle')?.checked!==false&&localStorage.kelvinLocalSave!=='0'}function savePrivacySetting(){localStorage.kelvinLocalSave=$('localSaveToggle').checked?'1':'0';toast($('localSaveToggle').checked?'Local saving enabled':'Local saving disabled')}
 function renderHomeStatus(){$('homeStatus').innerHTML='<div class="status-line"><span>Backend</span><strong id="homeBackend">Checking…</strong></div><div class="status-line"><span>Account</span><strong id="homeAccount">'+(state.authToken?'Connected':'Preview')+'</strong></div><div class="status-line"><span>Camera API</span><strong>'+(navigator.mediaDevices?.getUserMedia?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>WebRTC</span><strong>'+(window.RTCPeerConnection?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>AI API</span><strong id="homeAI">Checking…</strong></div>';fetch('/health').then(r=>r.json()).then(d=>{$('homeBackend').textContent=d.ok?'Online':'Offline';$('homeAI').textContent=d.engines?'Configured / server ready':'Server online';syncServerGallery()}).catch(()=>{$('homeBackend').textContent='Offline';$('homeAI').textContent='Unavailable'})}
 async function checkStatus(){renderHomeStatus();$('recorderStatus').textContent=window.MediaRecorder?'Available':'Unavailable';$('webrtcStatus').textContent=window.RTCPeerConnection?'Available':'Unavailable';$('faceStatus').textContent='FaceDetector' in window?'Available':'Not available in this browser';try{const r=await fetch('/health');const d=await r.json();$('backendStatus').textContent=d.ok?'Online':'Offline'}catch{$('backendStatus').textContent='Offline'}}
-document.addEventListener('DOMContentLoaded',()=>{loadUser();state.authToken=localStorage.kelvinAuthToken||'';state.avatars=[...defaultAvatars(),...getAvatars()];state.selectedAvatar=localStorage.kelvinSelectedAvatar||'default-1';if($('localSaveToggle'))$('localSaveToggle').checked=getPrivacy();checkStatus();syncServerGallery();window.addEventListener('beforeunload',()=>{try{if(state.recordStream)state.recordStream.getTracks().forEach(t=>t.stop());if(state.stream)state.stream.getTracks().forEach(t=>t.stop())}catch{}})});
+document.addEventListener('DOMContentLoaded',()=>{loadUser();state.authToken=localStorage.kelvinAuthToken||'';state.avatars=[...defaultAvatars(),...getAvatars()];state.selectedAvatar=localStorage.kelvinSelectedAvatar||'default-1';if($('localSaveToggle'))$('localSaveToggle').checked=getPrivacy();checkStatus();syncServerGallery();loadVoices();window.addEventListener('beforeunload',()=>{try{if(state.recordStream)state.recordStream.getTracks().forEach(t=>t.stop());if(state.stream)state.stream.getTracks().forEach(t=>t.stop())}catch{}})});
 
 </script>
 <script>
