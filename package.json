@@ -1,6 +1,6 @@
 {
   "name": "kelvinlive",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "main": "App.js",
   "scripts": {
@@ -20,5 +20,8 @@
     "react-native": "0.83.10",
     "react-native-web": "^0.21.0",
     "ws": "^8.18.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
