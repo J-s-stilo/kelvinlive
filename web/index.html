@@ -989,6 +989,10 @@ padding-right:12px}
 <textarea id="imagePrompt" class="input" rows="5" placeholder="Describe the image. Kelvin can use your instruction as the generation request.">
 </textarea>
 <input id="imageReference" type="file" accept="image/*" class="input">
+<label class="toggle" style="margin:10px 0 14px">
+<span>I own this image or have permission to edit/use the person shown.</span>
+<input id="imageConsent" type="checkbox">
+</label>
 <button class="btn" onclick="generateImage()">Generate Image</button>
 <div id="imageEngine" class="engine hidden">
 <div class="engine-head">
@@ -1349,10 +1353,12 @@ async function waitJob(id,kind,onResult){for(let i=0;i<180;i++){await new Promis
 function resultURL(r){return r?.url||r?.data||r?.output?.url||r?.output?.data||r}
 async function generateImage(){
   const prompt=$('imagePrompt').value.trim();if(!prompt)return toast('Enter an image description');
-  const ref=await fileData($('imageReference'));engineUI('image','Queued',5,'Sending image request…');
+  const ref=await fileData($('imageReference'));
+  if(ref&&!$('imageConsent').checked){engineUI('image','Failed',100,'Authorization is required before processing another person’s image or video');return toast('Confirm that you own the image or have permission to use it.')}
+  engineUI('image','Queued',5,'Sending image request…');
   try{
     const endpoint=ref?'/api/ai/image-edit':'/api/ai/image';
-    const body=ref?{imageDataUrl:ref.data,prompt}:{prompt};
+    const body=ref?{imageDataUrl:ref.data,prompt,authorized:true,consent:true}:{prompt};
     const d=await apiJSON(endpoint,body);let result;
     if(d.jobId||d.job?.id){engineUI('image','Processing',10,'Image generation is running on the server…');await waitJob(d.jobId||d.job.id,'image',r=>result=r)}else result=d.result;
     const url=resultURL(result);if(!url)throw Error('Image engine returned no output');
