@@ -953,6 +953,10 @@ padding-right:12px}
 <strong>Choose media from your phone</strong>
 <p class="small">You can upload an image or an existing video from your gallery.</p>
 <input id="videoImage" type="file" accept="image/*,video/*" class="input">
+<label class="toggle" style="margin:10px 0 14px">
+  <span>I own this media or have permission to use/edit the people shown.</span>
+  <input id="videoConsent" type="checkbox">
+</label>
 </div>
 <textarea id="videoPrompt" class="input" rows="4" placeholder="Tell Kelvin exactly what should happen… e.g. make the person speak, move, smile, turn, or perform an action.">
 </textarea>
@@ -1368,6 +1372,10 @@ async function generateImage(){
 }
 async function generateVideo(){
   const media=await fileData($('videoImage')),audio=await fileData($('videoAudio')),prompt=$('videoPrompt').value.trim(),avatar=avatarById();
+  if(media && !$('videoConsent').checked){
+    engineUI('video','Failed',100,'Authorization is required before processing uploaded media.');
+    return toast('Confirm that you own the media or have permission to use it.');
+  }
   if(!media&&!prompt)return toast('Choose media or enter a generation prompt first');
   engineUI('video','Queued',5,'Sending request to the configured video engine…');
   try{
