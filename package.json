@@ -2,6 +2,7 @@
   "name": "kelvinlive",
   "version": "1.0.0",
   "private": true,
+  "main": "expo/AppEntry.js",
   "main": "App.js",
   "scripts": {
     "start": "expo start",
