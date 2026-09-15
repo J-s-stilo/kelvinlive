@@ -13,7 +13,7 @@
 </style>
 </head>
 <body>
-<section id="welcome" class="screen"><div class="container center" style="padding-top:12vh"><div class="logo">K</div><h1>Kelvin Live</h1><p>Real people. Authorized avatars. Real-time video.</p><div class="card"><h3>Live calls + AI creation in one app</h3><p>Capture your camera and voice, choose an authorized avatar, connect another device, create images and generate videos from your own media.</p></div><button class="btn light" onclick="show('auth')">Get Started</button><button class="btn secondary" onclick="show('permissions')">Camera & Microphone Setup</button></div></section>
+<section id="welcome" class="screen"><div class="container center" style="padding-top:12vh"><div class="logo">K</div><h1>Kelvin Live</h1><p>Real people. Authorized avatars. Real-time video.</p><div class="card"><h3>Live calls + AI creation in one app</h3><p>Capture your camera and voice, choose an authorized avatar, connect another device, create images and generate videos from your own media.</p></div><button type="button" class="btn light" id="getStartedBtn" onclick="getStarted()">Get Started</button><button class="btn secondary" onclick="show('permissions')">Camera & Microphone Setup</button></div></section>
 
 <section id="auth" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('welcome')">←</button><strong>Kelvin Live</strong><span></span></div><div class="card"><h2 id="authTitle">Welcome back</h2><p id="authText">Sign in to continue.</p><input id="nameInput" class="input hidden" placeholder="Full name"><input id="emailInput" class="input" type="email" placeholder="Email address"><input id="passwordInput" class="input" type="password" placeholder="Password"><button class="btn" onclick="login()">Continue</button><button class="btn secondary" onclick="toggleAuth()" id="authToggle">Create an account</button></div></div></section>
 
@@ -47,7 +47,29 @@ const $=id=>document.getElementById(id);
 function toast(m){const e=$('toast');e.textContent=m;e.style.display='block';clearTimeout(window._toast);window._toast=setTimeout(()=>e.style.display='none',3200)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escAttr(v){return esc(v)}
-function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));const e=$(id);if(e)e.classList.remove('hidden');if(id==='callScreen')startCallCamera();if(id==='record')prepareRecordPreview();if(id==='gallery')renderGallery();if(id==='avatar')renderAvatars();if(id==='dashboard')renderHomeStatus();if(id==='profile')checkStatus()}
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+  const e=$(id);
+  if(!e){console.error('Kelvin Live: screen not found:',id);return false}
+  e.classList.remove('hidden');
+  window.scrollTo(0,0);
+  if(id==='callScreen')startCallCamera();
+  if(id==='record')prepareRecordPreview();
+  if(id==='gallery')renderGallery();
+  if(id==='avatar')renderAvatars();
+  if(id==='dashboard')renderHomeStatus();
+  if(id==='profile')checkStatus();
+  return true
+}
+function getStarted(){
+  try{
+    if(localStorage.kelvinUserEmail){
+      loadUser();
+      return show('dashboard');
+    }
+  }catch(e){}
+  return show('auth');
+}
 function toggleAuth(){state.authMode=state.authMode==='login'?'signup':'login';$('authTitle').textContent=state.authMode==='login'?'Welcome back':'Create your account';$('authText').textContent=state.authMode==='login'?'Sign in to continue.':'Create an account to start using Kelvin Live.';$('nameInput').classList.toggle('hidden',state.authMode==='login');$('authToggle').textContent=state.authMode==='login'?'Create an account':'Already have an account?'}
 function login(){const email=$('emailInput').value.trim();if(!email)return toast('Enter your email address');const name=$('nameInput').value.trim()||email.split('@')[0]||'Kelvin User';localStorage.kelvinUserName=name;localStorage.kelvinUserEmail=email;loadUser();show('dashboard');toast('Welcome to Kelvin Live')}
 function logout(){endCall(true);localStorage.removeItem('kelvinUserName');localStorage.removeItem('kelvinUserEmail');show('welcome')}
@@ -105,6 +127,16 @@ function getPrivacy(){return $('localSaveToggle')?.checked!==false&&localStorage
 function renderHomeStatus(){$('homeStatus').innerHTML='<div class="status-line"><span>Backend</span><strong id="homeBackend">Checking…</strong></div><div class="status-line"><span>Camera API</span><strong>'+(navigator.mediaDevices?.getUserMedia?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>WebRTC</span><strong>'+(window.RTCPeerConnection?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>AI API</span><strong id="homeAI">Checking…</strong></div>';fetch('/health').then(r=>r.json()).then(d=>{$('homeBackend').textContent=d.ok?'Online':'Offline';$('homeAI').textContent=d.engines?'Engines available':'Server online'}).catch(()=>{$('homeBackend').textContent='Offline';$('homeAI').textContent='Unavailable'})}
 async function checkStatus(){renderHomeStatus();$('recorderStatus').textContent=window.MediaRecorder?'Available':'Unavailable';$('webrtcStatus').textContent=window.RTCPeerConnection?'Available':'Unavailable';$('faceStatus').textContent='FaceDetector' in window?'Available':'Not available in this browser';try{const r=await fetch('/health');const d=await r.json();$('backendStatus').textContent=d.ok?'Online':'Offline'}catch{$('backendStatus').textContent='Offline'}}
 document.addEventListener('DOMContentLoaded',()=>{loadUser();state.avatars=[...defaultAvatars(),...getAvatars()];state.selectedAvatar=localStorage.kelvinSelectedAvatar||'default-1';if($('localSaveToggle'))$('localSaveToggle').checked=getPrivacy();checkStatus();window.addEventListener('beforeunload',()=>{try{if(state.recordStream)state.recordStream.getTracks().forEach(t=>t.stop());if(state.stream)state.stream.getTracks().forEach(t=>t.stop())}catch{}})});
-</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  try{
+    if(localStorage.kelvinUserEmail){
+      loadUser();
+    }
+  }catch(e){console.warn('Kelvin Live local storage unavailable',e)}
+  const b=document.getElementById('getStartedBtn');
+  if(b)b.addEventListener('click',getStarted);
+});
+</script></script>
 </body>
 </html>
