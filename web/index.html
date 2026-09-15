@@ -2,953 +2,189 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070914">
 <title>Kelvin Live</title>
-
 <style>
-*{box-sizing:border-box}
-body{
-  margin:0;
-  min-height:100vh;
-  font-family:Arial,sans-serif;
-  background:#05060b;
-  color:#fff;
-}
-button,input{font:inherit}
-button{cursor:pointer}
-.hidden{display:none!important}
-
-.screen{
-  min-height:100vh;
-  width:100%;
-}
-
-.container{
-  width:100%;
-  max-width:520px;
-  margin:auto;
-  padding:28px 20px;
-}
-
-.logo{
-  width:82px;
-  height:82px;
-  margin:0 auto 20px;
-  border-radius:50%;
-  background:linear-gradient(135deg,#fff,#aebcff);
-  color:#05060b;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:32px;
-  font-weight:900;
-  box-shadow:0 0 35px #526dff55;
-}
-
-h1{font-size:38px;margin:0 0 10px}
-h2{margin:0 0 8px;font-size:27px}
-h3{margin:0 0 6px}
-p{color:#aeb3c2;line-height:1.5}
-
-.center{text-align:center}
-
-.btn{
-  width:100%;
-  border:0;
-  border-radius:15px;
-  padding:16px;
-  font-weight:800;
-  color:#fff;
-  background:linear-gradient(135deg,#3867ff,#8b4dff);
-  box-shadow:0 8px 25px #3867ff33;
-  margin-top:10px;
-}
-
-.btn.secondary{
-  background:#151925;
-  box-shadow:none;
-}
-
-.btn.light{
-  background:#fff;
-  color:#05060b;
-}
-
-.card{
-  background:#10131d;
-  border:1px solid #202536;
-  border-radius:20px;
-  padding:18px;
-  margin:12px 0;
-}
-
-.input{
-  width:100%;
-  padding:15px;
-  border-radius:13px;
-  border:1px solid #292e40;
-  background:#0d1018;
-  color:#fff;
-  outline:none;
-  margin:7px 0;
-}
-
-.input:focus{border-color:#657cff}
-
-.topbar{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:22px;
-}
-
-.back{
-  border:0;
-  background:#151925;
-  color:#fff;
-  border-radius:12px;
-  padding:10px 14px;
-}
-
-.grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-}
-
-.feature{
-  min-height:145px;
-  border-radius:20px;
-  padding:20px;
-  border:1px solid #252a3a;
-  background:linear-gradient(145deg,#121622,#0b0d14);
-}
-
-.icon{font-size:30px;margin-bottom:18px}
-
-.avatar{
-  border:2px solid transparent;
-  border-radius:18px;
-  background:#151925;
-  padding:15px;
-  text-align:center;
-}
-.avatar.selected{border-color:#637cff}
-
-.avatar-circle{
-  width:72px;
-  height:72px;
-  margin:auto auto 10px;
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:30px;
-  background:linear-gradient(135deg,#3867ff,#9a4dff);
-}
-
-.call-code{
-  font-size:28px;
-  font-weight:900;
-  letter-spacing:3px;
-  text-align:center;
-  padding:18px;
-  background:#080a10;
-  border-radius:15px;
-  margin:15px 0;
-}
-
-.video-wrap{
-  position:relative;
-  width:100%;
-  aspect-ratio:9/16;
-  max-height:65vh;
-  background:#000;
-  border-radius:22px;
-  overflow:hidden;
-  border:1px solid #252a3a;
-}
-
-video{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-}
-
-.call-label{
-  position:absolute;
-  top:15px;
-  left:15px;
-  padding:8px 12px;
-  border-radius:20px;
-  background:#0009;
-}
-
-.controls{
-  display:flex;
-  justify-content:center;
-  gap:12px;
-  margin-top:15px;
-}
-
-.control{
-  width:54px;
-  height:54px;
-  border:0;
-  border-radius:50%;
-  background:#191d29;
-  color:#fff;
-  font-size:20px;
-}
-
-.control.end{background:#e43e4d}
-
-.gallery{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-}
-
-.gallery-item{
-  aspect-ratio:1;
-  border-radius:17px;
-  background:linear-gradient(135deg,#202b55,#713da0);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:35px;
-}
-
-.nav{
-  position:fixed;
-  bottom:0;
-  left:50%;
-  transform:translateX(-50%);
-  width:100%;
-  max-width:520px;
-  background:#090b12ee;
-  backdrop-filter:blur(15px);
-  border-top:1px solid #202536;
-  display:flex;
-  justify-content:space-around;
-  padding:10px 5px;
-}
-
-.nav button{
-  background:none;
-  border:0;
-  color:#858b9d;
-  font-size:11px;
-}
-
-.nav button.active{color:#7890ff}
-
-.toast{
-  position:fixed;
-  left:50%;
-  bottom:85px;
-  transform:translateX(-50%);
-  background:#fff;
-  color:#000;
-  padding:12px 18px;
-  border-radius:12px;
-  font-weight:bold;
-  display:none;
-  z-index:100;
-}
-
-@media(min-width:700px){
-  .container{padding-top:45px}
-}
+:root{--bg:#05060b;--panel:#0e1220;--panel2:#12182a;--line:#242c45;--muted:#929ab0;--text:#fff;--blue:#4f72ff;--violet:#9b4dff;--cyan:#4ce7ff;--green:#35d49a;--red:#f04d61;--shadow:0 18px 50px #0008}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif}body{min-height:100vh}button,input,textarea,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+.screen{min-height:100vh;width:100%}.container{width:100%;max-width:620px;margin:auto;padding:24px 18px 100px}.center{text-align:center}
+.logo{width:78px;height:78px;border-radius:24px;margin:0 auto 18px;background:linear-gradient(135deg,#fff,#5c8dff 55%,#a84dff);color:#080912;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:1000;box-shadow:0 0 45px #526dff55}
+h1{font-size:40px;margin:0 0 8px}h2{font-size:26px;margin:0 0 8px}h3{margin:0 0 7px}p{color:var(--muted);line-height:1.5}.small{font-size:12px;color:var(--muted)}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}.back,.ghost{border:1px solid var(--line);background:#141a29;color:#fff;border-radius:13px;padding:10px 14px}.btn{width:100%;border:0;border-radius:15px;padding:15px 16px;margin-top:10px;color:#fff;font-weight:850;background:linear-gradient(135deg,var(--blue),var(--violet));box-shadow:0 9px 28px #3867ff35}.btn.secondary{background:#151b2b;box-shadow:none}.btn.light{background:#fff;color:#080912}.btn.danger{background:var(--red)}.row{display:flex;gap:10px}.row>*{flex:1}
+.card{background:linear-gradient(145deg,#101523,#0b0e18);border:1px solid var(--line);border-radius:20px;padding:18px;margin:12px 0;box-shadow:0 10px 35px #0003}.input,textarea,select{width:100%;padding:14px;border-radius:13px;border:1px solid #2b334b;background:#090c15;color:#fff;outline:0;margin:6px 0}.input:focus,textarea:focus,select:focus{border-color:#657cff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.feature{min-height:135px;border-radius:20px;padding:18px;border:1px solid var(--line);background:linear-gradient(145deg,#121827,#090c15)}.feature .icon{font-size:29px;margin-bottom:14px}.feature p{font-size:13px;margin:4px 0}
+.badge{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:12px;color:#cbd1e0}.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}.dot.off{background:var(--red)}
+.nav{position:fixed;z-index:20;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:620px;background:#080b13ee;backdrop-filter:blur(18px);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:9px 5px calc(9px + env(safe-area-inset-bottom))}.nav button{background:none;border:0;color:#7e879e;font-size:11px}.nav button.active{color:#8298ff}
+.avatar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.avatar{border:2px solid transparent;border-radius:17px;background:#151b2a;padding:10px;text-align:center;overflow:hidden}.avatar.selected{border-color:#6e83ff}.avatar-img{width:82px;height:82px;border-radius:50%;object-fit:cover;background:#20294a;margin:auto;display:block}.avatar-circle{width:82px;height:82px;border-radius:50%;margin:auto auto 8px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;background:linear-gradient(135deg,#3867ff,#9a4dff)}
+.call-code{font-size:25px;font-weight:900;letter-spacing:3px;text-align:center;padding:17px;background:#070a11;border-radius:15px;margin:15px 0}.video-wrap{position:relative;width:100%;aspect-ratio:9/16;max-height:67vh;background:#000;border-radius:22px;overflow:hidden;border:1px solid var(--line)}video{width:100%;height:100%;object-fit:cover}.avatar-output{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#06070c}.local-pip{position:absolute;right:12px;bottom:12px;width:30%;height:25%;border-radius:14px;border:2px solid #fff;object-fit:cover;background:#111}.call-label{position:absolute;top:13px;left:13px;padding:8px 11px;border-radius:20px;background:#0009;font-size:12px}.controls{display:flex;justify-content:center;gap:10px;margin-top:14px}.control{width:52px;height:52px;border:0;border-radius:50%;background:#191e2c;color:#fff;font-size:19px}.control.end{background:var(--red)}
+.tabs{display:flex;gap:7px;overflow:auto}.tab{white-space:nowrap;border:1px solid var(--line);background:#111727;color:#aab2c7;border-radius:999px;padding:9px 12px}.tab.active{color:#fff;border-color:#6b7dff}
+.gallery{display:grid;grid-template-columns:1fr 1fr;gap:12px}.gallery-item{position:relative;aspect-ratio:1;border-radius:17px;overflow:hidden;background:linear-gradient(135deg,#202b55,#713da0);border:1px solid var(--line)}.gallery-item img,.gallery-item video{width:100%;height:100%;object-fit:cover}.gallery-label{position:absolute;bottom:7px;left:7px;right:7px;background:#000a;border-radius:9px;padding:6px;font-size:11px}
+.engine{border:1px solid #303856;border-radius:17px;padding:15px;margin:10px 0;background:#0c101b}.engine-head{display:flex;justify-content:space-between;align-items:center}.progress{height:8px;border-radius:20px;background:#1c2233;overflow:hidden;margin-top:12px}.progress>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--violet));transition:.25s}
+.permission{display:grid;grid-template-columns:1fr 1fr;gap:10px}.permission .box{padding:13px;border:1px solid var(--line);border-radius:15px;background:#0c101b}.box strong{display:block;margin-bottom:5px}
+.capture{position:relative;aspect-ratio:16/10;background:#000;border-radius:18px;overflow:hidden;border:1px solid var(--line)}.capture video{object-fit:cover}.capture canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.tracking-badge{position:absolute;left:10px;top:10px;background:#0009;border-radius:10px;padding:7px 9px;font-size:11px}
+.toast{position:fixed;z-index:100;left:50%;bottom:85px;transform:translateX(-50%);background:#fff;color:#000;padding:12px 16px;border-radius:12px;font-weight:800;display:none;max-width:90%;text-align:center}.modal{position:fixed;z-index:80;inset:0;background:#000b;display:flex;align-items:flex-end;justify-content:center}.modal-card{width:100%;max-width:620px;background:#0d1220;border:1px solid var(--line);border-radius:24px 24px 0 0;padding:20px;max-height:88vh;overflow:auto}
+.status-line{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #20273b}.status-line:last-child{border-bottom:0}.danger-text{color:#ff7d8a}.success{color:#50e0aa}
+@media(min-width:760px){.container{padding-top:38px}.grid{gap:15px}.video-wrap{max-width:430px;margin:auto}}
 </style>
 </head>
-
 <body>
 
-<!-- WELCOME -->
 <section id="welcome" class="screen">
-  <div class="container center" style="padding-top:12vh">
-    <div class="logo">K</div>
-    <h1>Kelvin Live</h1>
-    <p>Real-time avatar video technology</p>
-    <button class="btn light" onclick="show('auth')">Get Started</button>
-  </div>
+<div class="container center" style="padding-top:12vh">
+<div class="logo">K</div><h1>Kelvin Live</h1><p>Real people. Authorized avatars. Real-time video.</p>
+<div class="card"><h3>One platform for live avatar calls and creation</h3><p>Connect two phones, choose an authorized avatar, capture movement and voice, create media, and manage your creations.</p></div>
+<button class="btn light" onclick="show('auth')">Get Started</button>
+<button class="btn secondary" onclick="show('permissions')">Camera & Microphone Setup</button>
+</div>
 </section>
 
-<!-- AUTH -->
-<section id="auth" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="show('welcome')">←</button>
-      <strong>Kelvin Live</strong>
-      <span></span>
-    </div>
+<section id="auth" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('welcome')">←</button><strong>Kelvin Live</strong><span></span></div>
+<div class="card"><h2 id="authTitle">Welcome back</h2><p id="authText">Sign in to continue.</p><input id="nameInput" class="input hidden" placeholder="Full name"><input id="emailInput" class="input" type="email" placeholder="Email address"><input id="passwordInput" class="input" type="password" placeholder="Password"><button class="btn" onclick="login()">Continue</button><button class="btn secondary" onclick="toggleAuth()" id="authToggle">Create an account</button></div></div></section>
 
-    <div class="card">
-      <h2 id="authTitle">Welcome back</h2>
-      <p id="authText">Sign in to continue to Kelvin Live.</p>
+<section id="dashboard" class="screen hidden"><div class="container">
+<div class="topbar"><div><small class="small">Welcome</small><h2 id="userName">Kelvin User</h2></div><button class="back" onclick="show('profile')">👤</button></div>
+<div class="card"><div class="badge"><span class="dot"></span> Kelvin Live Engine</div><h2 style="margin-top:10px">Create, connect and go live.</h2><p>Your camera and microphone drive the live pipeline; your selected authorized avatar is the visual output.</p></div>
+<div class="grid">
+<div class="feature" onclick="show('callSetup')"><div class="icon">📹</div><h3>Video Call</h3><p>Two-phone private call and live media pipeline.</p></div>
+<div class="feature" onclick="show('avatar')"><div class="icon">🧑‍🎨</div><h3>Avatars</h3><p>Select or add an authorized avatar.</p></div>
+<div class="feature" onclick="show('record')"><div class="icon">⏺️</div><h3>Record Video</h3><p>Record camera or avatar output.</p></div>
+<div class="feature" onclick="show('generateVideo')"><div class="icon">🎬</div><h3>Generate Video</h3><p>Image-to-video and talking-avatar hooks.</p></div>
+<div class="feature" onclick="show('createImage')"><div class="icon">✨</div><h3>Create Image</h3><p>Prompt image generation.</p></div>
+<div class="feature" onclick="show('replace')"><div class="icon">🪄</div><h3>Image / Face Replace</h3><p>Authorized replacement workflow.</p></div>
+</div>
+<div class="card" onclick="show('gallery')"><h3>🗂️ My Gallery</h3><p>Saved images, videos and avatars.</p></div>
+<div class="card"><h3>System status</h3><div id="homeStatus"></div></div>
+</div><nav class="nav"><button class="active" onclick="show('dashboard')">⌂<br>Home</button><button onclick="show('callSetup')">📹<br>Call</button><button onclick="show('gallery')">🗂️<br>Gallery</button><button onclick="show('profile')">👤<br>Profile</button></nav></section>
 
-      <input id="nameInput" class="input hidden" placeholder="Full name">
-      <input id="emailInput" class="input" type="email" placeholder="Email address">
-      <input id="passwordInput" class="input" type="password" placeholder="Password">
+<section id="permissions" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Camera & Microphone</h3><span></span></div>
+<div class="card"><h2>Device permissions</h2><p>Kelvin Live needs camera and microphone access for real-time capture, calls and recording. Your browser/OS will show the actual permission prompt.</p><div class="permission"><div class="box"><strong>📷 Camera</strong><span id="camPermission" class="small">Not checked</span></div><div class="box"><strong>🎤 Microphone</strong><span id="micPermission" class="small">Not checked</span></div></div><button class="btn" onclick="requestPermissions()">Allow Camera & Microphone</button><button class="btn secondary" onclick="openCameraSettings()">Open browser permission guidance</button></div>
+<div class="card"><h3>Front / Back Camera</h3><p>On devices with multiple cameras, Kelvin Live requests the front camera by default and can switch to the rear camera during capture.</p><div class="row"><button class="btn secondary" onclick="setFacing('user')">Front Camera</button><button class="btn secondary" onclick="setFacing('environment')">Back Camera</button></div></div></div></section>
 
-      <button class="btn" onclick="login()">Continue</button>
+<section id="callSetup" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Video Call</h3><span></span></div>
+<div class="card center"><div class="badge"><span class="dot"></span> Two-device room</div><h2 style="margin-top:10px">Connect two phones</h2><p>Phone 1 and Phone 2 join the same private Kelvin Live room. The media pipeline is then established between them.</p><button class="btn" onclick="createCall()">Create Call</button><input id="joinCode" class="input" placeholder="Enter KLV call code"><button class="btn secondary" onclick="joinCall()">Join Call</button></div>
+<div id="createdCall" class="card hidden center"><small>Share this call code with the second phone</small><div id="callCode" class="call-code">KLV-000000</div><div class="row"><button class="btn secondary" onclick="copyCode()">Copy</button><button class="btn" onclick="enterCreatedCall()">Enter</button></div></div>
+<div class="card"><h3>Live avatar path</h3><p>Camera + microphone → tracking → selected avatar renderer → output stream → native media bridge → supported external call input.</p></div></div></section>
 
-      <button class="btn secondary" onclick="toggleAuth()">
-        <span id="authToggle">Create an account</span>
-      </button>
-    </div>
-  </div>
-</section>
+<section id="avatar" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Avatar Selection</h3><span></span></div>
+<p>Only use images/faces you have authorization to use.</p><div id="avatarGrid" class="avatar-grid"></div>
+<div class="card"><h3>➕ Add Avatar</h3><p>Upload an authorized image. Kelvin Live stores it locally in this web build; the server also provides a media API for production storage.</p><input id="avatarFile" type="file" accept="image/*" class="input" onchange="addAvatar(event)"><label style="display:block;margin-top:9px"><input id="avatarConsent" type="checkbox"> I confirm I have the right/permission to use this image.</label><button class="btn" onclick="saveUploadedAvatar()">Save Avatar</button></div>
+<button class="btn" onclick="show('callSetup')">Use Selected Avatar</button></div></section>
 
-<!-- DASHBOARD -->
-<section id="dashboard" class="screen hidden">
-  <div class="container" style="padding-bottom:100px">
+<section id="callScreen" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="endCall()">←</button><strong>Kelvin Live Call</strong><span id="timer">00:00</span></div>
+<div class="video-wrap"><video id="avatarOutput" class="avatar-output" autoplay muted playsinline></video><video id="remoteVideo" class="hidden" autoplay playsinline></video><video id="localVideo" class="local-pip" autoplay muted playsinline></video><canvas id="avatarCanvas" class="hidden"></canvas><div class="call-label" id="callStatus">Preparing camera…</div></div>
+<div class="card"><div class="status-line"><span>Camera</span><strong id="callCamState">Starting</strong></div><div class="status-line"><span>Microphone</span><strong id="callMicState">Starting</strong></div><div class="status-line"><span>Avatar</span><strong id="callAvatarState">Selected avatar</strong></div><div class="status-line"><span>Tracking</span><strong id="trackingState">Initializing</strong></div></div>
+<div class="controls"><button class="control" onclick="toggleMic()" id="micBtn">🎤</button><button class="control" onclick="switchCamera()">🔄</button><button class="control" onclick="toggleCamera()" id="cameraBtn">📷</button><button class="control" onclick="toggleAvatarPreview()" id="avatarBtn">🧑</button><button class="control end" onclick="endCall()">☎</button></div>
+<button class="btn secondary" onclick="show('record')">⏺️ Record this output</button></div></section>
 
-    <div class="topbar">
-      <div>
-        <small style="color:#8d94a8">Welcome</small>
-        <h2 id="userName">Kelvin User</h2>
-      </div>
-      <button class="back" onclick="show('profile')">👤</button>
-    </div>
+<section id="record" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Record Video</h3><span></span></div>
+<div class="card"><h2>Camera / Avatar Recording</h2><p>Choose the source. Recording uses the browser MediaRecorder when supported.</p><select id="recordSource"><option value="camera">Camera</option><option value="avatar">Kelvin Live Avatar Output</option></select><div class="capture" style="margin-top:12px"><video id="recordPreview" autoplay muted playsinline></video></div><div class="row"><button class="btn" onclick="startRecording()" id="recordStart">Start Recording</button><button class="btn secondary" onclick="stopRecording()" id="recordStop">Stop</button></div><div id="recordStatus" class="small" style="margin-top:10px">Ready.</div></div></div></section>
 
-    <div class="card">
-      <small style="color:#8991a5">Kelvin Live</small>
-      <h2>What do you want to create?</h2>
-      <p>Connect, create and bring your authorized avatars to life.</p>
-    </div>
+<section id="generateVideo" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Generate Video</h3><span></span></div>
+<div class="card"><div class="tabs"><button class="tab active" onclick="setVideoMode(this,'image-to-video')">Image → Video</button><button class="tab" onclick="setVideoMode(this,'talking-avatar')">Talking Avatar</button><button class="tab" onclick="setVideoMode(this,'video-avatar')">Video → Avatar</button></div><input id="videoImage" type="file" accept="image/*,video/*" class="input"><textarea id="videoPrompt" class="input" rows="4" placeholder="Describe the motion, speech, scene or action…"></textarea><input id="videoAudio" type="file" accept="audio/*" class="input"><button class="btn" onclick="generateVideo()">Generate Video</button><div id="videoEngine" class="engine hidden"><div class="engine-head"><strong>Video Engine</strong><span id="videoEngineState">Queued</span></div><div class="progress"><i id="videoProgress"></i></div><p id="videoEngineMessage">Preparing request…</p></div></div>
+<div id="generatedVideo" class="card hidden"><video id="generatedVideoPlayer" controls playsinline style="width:100%;border-radius:15px"></video><button class="btn" onclick="saveGeneratedVideo()">Save to Gallery</button></div></div></section>
 
-    <div class="grid">
-      <div class="feature" onclick="show('callSetup')">
-        <div class="icon">📹</div>
-        <h3>Video Call</h3>
-        <p>Start or join a private call.</p>
-      </div>
+<section id="createImage" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Create Image</h3><span></span></div>
+<div class="card"><textarea id="imagePrompt" class="input" rows="5" placeholder="Describe the image you want to create…"></textarea><input id="imageReference" type="file" accept="image/*" class="input"><button class="btn" onclick="generateImage()">Generate Image</button><div id="imageEngine" class="engine hidden"><div class="engine-head"><strong>Image Engine</strong><span id="imageEngineState">Queued</span></div><div class="progress"><i id="imageProgress"></i></div><p id="imageEngineMessage">Preparing request…</p></div></div>
+<div id="generatedImage" class="card hidden"><img id="generatedImagePreview" style="width:100%;border-radius:15px;max-height:520px;object-fit:contain;background:#000"><button class="btn" onclick="saveGeneratedImage()">Save to Gallery</button></div></div></section>
 
-      <div class="feature" onclick="show('avatar')">
-        <div class="icon">🧑‍🎨</div>
-        <h3>Avatars</h3>
-        <p>Choose your authorized avatar.</p>
-      </div>
+<section id="replace" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Image / Face Replacement</h3><span></span></div>
+<div class="card"><p>Use this only with authorized faces and source media.</p><input id="replaceSource" type="file" accept="image/*,video/*" class="input"><input id="replaceAvatar" type="file" accept="image/*" class="input"><textarea id="replacePrompt" class="input" rows="3" placeholder="Optional instructions for the replacement engine…"></textarea><label><input id="replaceConsent" type="checkbox"> I confirm I have authorization for both source and replacement images.</label><button class="btn" onclick="replaceMedia()">Run Replacement Engine</button><div id="replaceEngine" class="engine hidden"><div class="engine-head"><strong>Replacement Engine</strong><span id="replaceState">Queued</span></div><div class="progress"><i id="replaceProgress"></i></div><p id="replaceMessage"></p></div></div><div id="replaceResult" class="card hidden"><div id="replaceResultMedia"></div><button class="btn" onclick="saveReplacement()">Save to Gallery</button></div></div></section>
 
-      <div class="feature" onclick="show('generateVideo')">
-        <div class="icon">🎬</div>
-        <h3>Generate Video</h3>
-        <p>Create an AI video.</p>
-      </div>
+<section id="gallery" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>My Gallery</h3><button class="ghost" onclick="clearGallery()">Clear</button></div><div class="tabs"><button class="tab active" onclick="filterGallery('all',this)">All</button><button class="tab" onclick="filterGallery('image',this)">Images</button><button class="tab" onclick="filterGallery('video',this)">Videos</button><button class="tab" onclick="filterGallery('avatar',this)">Avatars</button></div><div id="galleryGrid" class="gallery" style="margin-top:14px"></div></div></section>
 
-      <div class="feature" onclick="show('createImage')">
-        <div class="icon">✨</div>
-        <h3>Create Image</h3>
-        <p>Generate an image from a prompt.</p>
-      </div>
-    </div>
-
-    <div class="card" onclick="show('gallery')">
-      <h3>🗂️ My Gallery</h3>
-      <p>View your saved creations.</p>
-    </div>
-  </div>
-
-  <nav class="nav">
-    <button class="active" onclick="show('dashboard')">⌂<br>Home</button>
-    <button onclick="show('callSetup')">📹<br>Call</button>
-    <button onclick="show('gallery')">🗂️<br>Gallery</button>
-    <button onclick="show('profile')">👤<br>Profile</button>
-  </nav>
-</section>
-
-<!-- CALL SETUP -->
-<section id="callSetup" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="show('dashboard')">←</button>
-      <h3>Video Call</h3>
-      <span></span>
-    </div>
-
-    <div class="card center">
-      <h2>Private Call</h2>
-      <p>Create a private call or join someone else's call.</p>
-
-      <button class="btn" onclick="createCall()">Create Call</button>
-
-      <input id="joinCode" class="input" placeholder="Enter call code">
-
-      <button class="btn secondary" onclick="joinCall()">Join Call</button>
-    </div>
-
-    <div id="createdCall" class="card hidden center">
-      <small>Your call code</small>
-      <div id="callCode" class="call-code">KLV-000000</div>
-      <button class="btn secondary" onclick="copyCode()">Copy Call Code</button>
-      <button class="btn" onclick="enterCreatedCall()">Enter Call</button>
-    </div>
-  </div>
-</section>
-
-<!-- AVATAR -->
-<section id="avatar" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="show('dashboard')">←</button>
-      <h3>Avatar Selection</h3>
-      <span></span>
-    </div>
-
-    <p>Select an authorized avatar for your call.</p>
-
-    <div class="grid">
-      <div class="avatar selected" onclick="selectAvatar(this,'Avatar 1')">
-        <div class="avatar-circle">K</div>
-        <strong>Avatar 1</strong>
-      </div>
-
-      <div class="avatar" onclick="selectAvatar(this,'Avatar 2')">
-        <div class="avatar-circle">A</div>
-        <strong>Avatar 2</strong>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>➕ Add Avatar</h3>
-      <p>Add an image that you are authorized to use.</p>
-      <input type="file" accept="image/*" onchange="addAvatar(event)">
-    </div>
-
-    <button class="btn" onclick="show('callSetup')">Use Selected Avatar</button>
-  </div>
-</section>
-
-<!-- CALL -->
-<section id="callScreen" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="endCall()">←</button>
-      <strong>Kelvin Live Call</strong>
-      <span id="timer">00:00</span>
-    </div>
-
-    <div class="video-wrap">
-      <video id="remoteVideo" autoplay playsinline></video>
-      <video id="localVideo" autoplay muted playsinline style="position:absolute;right:12px;bottom:12px;width:32%;height:28%;border-radius:14px;border:2px solid #fff;object-fit:cover"></video>
-      <div class="call-label" id="callStatus">Waiting for another device...</div>
-    </div>
-
-    <div class="controls">
-      <button class="control" onclick="toggleMic()" id="micBtn">🎤</button>
-      <button class="control" onclick="switchCamera()">🔄</button>
-      <button class="control" onclick="toggleCamera()" id="cameraBtn">📷</button>
-      <button class="control end" onclick="endCall()">☎</button>
-    </div>
-  </div>
-</section>
-
-<!-- GENERATE VIDEO -->
-<section id="generateVideo" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="show('dashboard')">←</button>
-      <h3>Generate Video</h3>
-      <span></span>
-    </div>
-
-    <div class="card">
-      <h3>Choose an image</h3>
-      <input id="videoImage" type="file" accept="image/*" class="input">
-      <input id="videoPrompt" class="input" placeholder="Describe what the avatar should say/do">
-      <button class="btn" onclick="generateVideo()">Generate Video</button>
-    </div>
-
-    <div id="generatedVideo" class="card hidden center">
-      <div class="gallery-item">🎬</div>
-      <h3>Generated Video</h3>
-      <p>Your generated video will appear here.</p>
-      <button class="btn secondary" onclick="show('gallery')">Save to Gallery</button>
-    </div>
-  </div>
-</section>
-
-<!-- CREATE IMAGE -->
-<section id="createImage" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="show('dashboard')">←</button>
-      <h3>Create Image</h3>
-      <span></span>
-    </div>
-
-    <div class="card">
-      <h3>Describe your image</h3>
-      <textarea id="imagePrompt" class="input" rows="5"
-        placeholder="Describe the image you want to create..."></textarea>
-
-      <button class="btn" onclick="generateImage()">Create Image</button>
-    </div>
-
-    <div id="generatedImage" class="card hidden center">
-      <div class="gallery-item">✨</div>
-      <h3>Generated Image</h3>
-      <p>Your generated image will appear here.</p>
-      <button class="btn secondary" onclick="show('gallery')">Save to Gallery</button>
-    </div>
-  </div>
-</section>
-
-<!-- GALLERY -->
-<section id="gallery" class="screen hidden">
-  <div class="container" style="padding-bottom:100px">
-    <div class="topbar">
-      <button class="back" onclick="show('dashboard')">←</button>
-      <h3>My Gallery</h3>
-      <span></span>
-    </div>
-
-    <div class="gallery">
-      <div class="gallery-item">🎬</div>
-      <div class="gallery-item">✨</div>
-      <div class="gallery-item">🧑‍🎨</div>
-      <div class="gallery-item">🎥</div>
-    </div>
-  </div>
-</section>
-
-<!-- PROFILE -->
-<section id="profile" class="screen hidden">
-  <div class="container">
-    <div class="topbar">
-      <button class="back" onclick="show('dashboard')">←</button>
-      <h3>Profile</h3>
-      <span></span>
-    </div>
-
-    <div class="card center">
-      <div class="avatar-circle">K</div>
-      <h2 id="profileName">Kelvin User</h2>
-      <p id="profileEmail">user@example.com</p>
-    </div>
-
-    <div class="card">
-      <h3>⚙️ Settings</h3>
-      <p>Account and Kelvin Live preferences.</p>
-    </div>
-
-    <button class="btn secondary" onclick="logout()">Log Out</button>
-  </div>
-</section>
+<section id="profile" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><h3>Profile</h3><span></span></div><div class="card center"><div class="avatar-circle">K</div><h2 id="profileName">Kelvin User</h2><p id="profileEmail">user@example.com</p></div><div class="card"><h3>⚙️ Settings</h3><div class="status-line"><span>Backend</span><strong id="backendStatus">Checking…</strong></div><div class="status-line"><span>MediaRecorder</span><strong id="recorderStatus">Checking…</strong></div><div class="status-line"><span>WebRTC</span><strong id="webrtcStatus">Checking…</strong></div><button class="btn secondary" onclick="show('permissions')">Permissions</button></div><button class="btn secondary" onclick="logout()">Log Out</button></div></section>
 
 <div id="toast" class="toast"></div>
 
 <script>
-let authMode="login";
-let selectedAvatar="Avatar 1";
-let stream=null;
-let remoteStream=null;
-let peerConnection=null;
-let signalingSocket=null;
-let currentFacing="user";
-let micOn=true;
-let cameraOn=true;
-let timerInterval=null;
-let seconds=0;
-let callRole=null;
-let callConnected=false;
+const state={authMode:"login",selectedAvatar:"default-1",avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:"user",seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],videoMode:"image-to-video",lastGenerated:null,lastReplacement:null,tracking:false,avatarPreview:true};
 const rtcConfig={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
 
+const $=id=>document.getElementById(id);
+function toast(m){const e=$("toast");e.textContent=m;e.style.display="block";clearTimeout(window._toast);window._toast=setTimeout(()=>e.style.display="none",2800)}
 function show(id){
-  document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));
-  const target=document.getElementById(id);
-  if(target) target.classList.remove("hidden");
-
-  if(id==="callScreen") startCamera();
+ document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden")); const e=$(id);if(e)e.classList.remove("hidden");
+ if(id==="callScreen") startCallCamera(); if(id==="record") prepareRecordPreview(); if(id==="gallery") renderGallery(); if(id==="avatar") renderAvatars(); if(id==="dashboard") renderHomeStatus();
 }
+function toggleAuth(){state.authMode=state.authMode==="login"?"signup":"login";$("authTitle").textContent=state.authMode==="login"?"Welcome back":"Create your account";$("authText").textContent=state.authMode==="login"?"Sign in to continue.":"Create an account to start using Kelvin Live.";$("nameInput").classList.toggle("hidden",state.authMode==="login");$("authToggle").textContent=state.authMode==="login"?"Create an account":"Already have an account?"}
+function login(){const email=$("emailInput").value.trim();if(!email)return toast("Enter your email address");const name=$("nameInput").value.trim()||email.split("@")[0]||"Kelvin User";localStorage.kelvinUserName=name;localStorage.kelvinUserEmail=email;$("userName").textContent=name;$("profileName").textContent=name;$("profileEmail").textContent=email;show("dashboard");toast("Welcome to Kelvin Live")}
+function logout(){localStorage.removeItem("kelvinUserName");localStorage.removeItem("kelvinUserEmail");endCall(true);show("welcome")}
+function loadUser(){const n=localStorage.kelvinUserName,e=localStorage.kelvinUserEmail;if(n){$("userName").textContent=n;$("profileName").textContent=n}if(e)$("profileEmail").textContent=e}
 
-function toggleAuth(){
-  authMode=authMode==="login"?"signup":"login";
+async function requestPermissions(){try{if(!navigator.mediaDevices?.getUserMedia)throw Error("This browser does not expose camera/microphone access.");const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing},audio:true});s.getTracks().forEach(t=>t.stop());$("camPermission").textContent="Allowed";$("micPermission").textContent="Allowed";toast("Camera and microphone permission granted")}catch(e){$("camPermission").textContent="Blocked / unavailable";$("micPermission").textContent="Blocked / unavailable";toast(e.message||"Permission denied")}}
+function openCameraSettings(){toast("Use your browser/site settings to allow Camera and Microphone, then return to Kelvin Live.")}
+async function setFacing(f){state.facing=f;await stopStreamOnly();toast(f==="user"?"Front camera selected":"Back camera selected");if(!$("callScreen").classList.contains("hidden"))startCallCamera();}
 
-  document.getElementById("authTitle").textContent=
-    authMode==="login"?"Welcome back":"Create your account";
+async function createCall(){try{const r=await fetch("/api/call/create",{method:"POST"}),d=await r.json();if(!d.ok)throw Error(d.error);$("callCode").textContent=d.code;$("createdCall").classList.remove("hidden");localStorage.kelvinCallCode=d.code;toast("Call created")}catch(e){toast(e.message||"Unable to create call")}}
+async function joinCall(){const code=$("joinCode").value.trim().toUpperCase();if(!code)return toast("Enter a call code");try{const r=await fetch("/api/call/"+encodeURIComponent(code)),d=await r.json();if(!d.exists)return toast("Call not found");localStorage.kelvinCallCode=code;show("callScreen")}catch(e){toast("Unable to reach Kelvin Live server")}}
+function enterCreatedCall(){const c=$("callCode").textContent.trim();if(c&&c!=="KLV-000000"){localStorage.kelvinCallCode=c;show("callScreen")}}
+function copyCode(){navigator.clipboard?.writeText($("callCode").textContent);toast("Call code copied")}
 
-  document.getElementById("authText").textContent=
-    authMode==="login"
-    ?"Sign in to continue to Kelvin Live."
-    :"Create an account to start using Kelvin Live.";
+function defaultAvatars(){return[{id:"default-1",name:"Kelvin Avatar",src:"",consent:true},{id:"default-2",name:"Studio Avatar",src:"",consent:true},{id:"default-3",name:"Creative Avatar",src:"",consent:true}]}
+function getAvatars(){try{return JSON.parse(localStorage.kelvinAvatars||"[]")}catch{return[]}}
+function saveAvatars(){localStorage.kelvinAvatars=JSON.stringify(state.avatars)}
+function renderAvatars(){state.avatars=[...defaultAvatars(),...getAvatars()];$("avatarGrid").innerHTML=state.avatars.map(a=>`<div class="avatar ${a.id===state.selectedAvatar?"selected":""}" onclick="selectAvatar('${esc(a.id)}')">${a.src?`<img class="avatar-img" src="${escAttr(a.src)}">`:`<div class="avatar-circle">${esc(a.name.charAt(0))}</div>`}<strong>${esc(a.name)}</strong></div>`).join("")}
+function selectAvatar(id){state.selectedAvatar=id;localStorage.kelvinSelectedAvatar=id;renderAvatars();$("callAvatarState").textContent=avatarById()?.name||"Selected avatar";toast((avatarById()?.name||"Avatar")+" selected")}
+function avatarById(){return state.avatars.find(a=>a.id===state.selectedAvatar)||defaultAvatars()[0]}
+let pendingAvatarFile=null;
+function addAvatar(e){pendingAvatarFile=e.target.files[0]||null;if(pendingAvatarFile)toast("Image loaded. Confirm authorization and save it.")}
+function saveUploadedAvatar(){if(!pendingAvatarFile)return toast("Choose an image first");if(!$("avatarConsent").checked)return toast("Confirm you are authorized to use this image");const reader=new FileReader();reader.onload=()=>{const a={id:"avatar-"+crypto.randomUUID(),name:pendingAvatarFile.name.replace(/\.[^.]+$/,"").slice(0,30)||"My Avatar",src:reader.result,consent:true,createdAt:Date.now()};const arr=getAvatars();arr.push(a);localStorage.kelvinAvatars=JSON.stringify(arr);state.selectedAvatar=a.id;pendingAvatarFile=null;$("avatarConsent").checked=false;$("avatarFile").value="";renderAvatars();toast("Authorized avatar saved")};reader.readAsDataURL(pendingAvatarFile)}
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function escAttr(v){return esc(v)}
 
-  document.getElementById("nameInput")
-    .classList.toggle("hidden",authMode==="login");
-
-  document.getElementById("authToggle").textContent=
-    authMode==="login"?"Create an account":"Already have an account?";
+function wsUrl(){return (location.protocol==="https:"?"wss":"ws")+"://"+location.host}
+async function startCallCamera(){
+ if(state.stream)return;
+ try{state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+ $("localVideo").srcObject=state.stream;$("callCamState").textContent="Ready";$("callMicState").textContent="Ready";$("callStatus").textContent="Camera ready — connecting…";startTimer();await startAvatarRenderer();await connectSignaling()}catch(e){$("callStatus").textContent="Camera/microphone permission required";toast(e.message||"Allow camera and microphone")}
 }
-
-function login(){
-  const name=document.getElementById("nameInput").value.trim();
-  const email=document.getElementById("emailInput").value.trim();
-
-  if(!email){
-    toast("Enter your email address");
-    return;
-  }
-
-  const userName=name || email.split("@")[0] || "Kelvin User";
-
-  document.getElementById("userName").textContent=userName;
-  document.getElementById("profileName").textContent=userName;
-  document.getElementById("profileEmail").textContent=email;
-
-  localStorage.setItem("kelvinUserName",userName);
-  localStorage.setItem("kelvinUserEmail",email);
-
-  show("dashboard");
-  toast("Welcome to Kelvin Live");
-}
-
-function logout(){
-  localStorage.removeItem("kelvinUserName");
-  localStorage.removeItem("kelvinUserEmail");
-  show("welcome");
-}
-
-async function createCall(){
-  try{
-    const response=await fetch("/api/call/create",{method:"POST"});
-    const data=await response.json();
-    if(!data.ok) throw new Error(data.error||"Unable to create call");
-
-    const code=data.code;
-    document.getElementById("callCode").textContent=code;
-    document.getElementById("createdCall").classList.remove("hidden");
-    localStorage.setItem("kelvinCallCode",code);
-  }catch(error){
-    toast(error.message||"Unable to create call");
-  }
-}
-
-async function joinCall(){
-  const code=document.getElementById("joinCode").value.trim().toUpperCase();
-
-  if(!code){
-    toast("Enter a call code");
-    return;
-  }
-
-  try{
-    const response=await fetch("/api/call/"+encodeURIComponent(code));
-    const data=await response.json();
-    if(!data.exists){
-      toast("Call not found");
-      return;
-    }
-    localStorage.setItem("kelvinCallCode",code);
-    show("callScreen");
-  }catch(error){
-    toast("Unable to reach Kelvin Live server");
-  }
-}
-
-async function enterCreatedCall(){
-  const code=document.getElementById("callCode").textContent.trim();
-  if(!code || code==="KLV-000000") return;
-  localStorage.setItem("kelvinCallCode",code);
-  show("callScreen");
-}
-
-function copyCode(){
-  const code=document.getElementById("callCode").textContent;
-
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(code);
-  }
-
-  toast("Call code copied");
-}
-
-function selectAvatar(element,name){
-  document.querySelectorAll(".avatar")
-    .forEach(a=>a.classList.remove("selected"));
-
-  element.classList.add("selected");
-  selectedAvatar=name;
-  toast(name+" selected");
-}
-
-function addAvatar(event){
-  const file=event.target.files[0];
-
-  if(!file) return;
-
-  toast("Avatar image added");
-}
-
-function wsUrl(){
-  const protocol=location.protocol==="https:"?"wss":"ws";
-  return protocol+"://"+location.host;
-}
-
-async function startCamera(){
-  if(stream) return;
-
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:currentFacing,width:{ideal:1280},height:{ideal:720}},
-      audio:true
-    });
-
-    document.getElementById("localVideo").srcObject=stream;
-    document.getElementById("callStatus").textContent="Camera ready — connecting...";
-    startTimer();
-    await connectSignaling();
-  }catch(error){
-    document.getElementById("callStatus").textContent="Camera/microphone permission required";
-    toast("Allow camera and microphone access");
-  }
-}
-
-function connectSignaling(){
-  return new Promise((resolve,reject)=>{
-    const code=(localStorage.getItem("kelvinCallCode")||"").toUpperCase();
-    if(!code){reject(new Error("No call code"));return;}
-
-    if(signalingSocket && signalingSocket.readyState===WebSocket.OPEN){
-      signalingSocket.send(JSON.stringify({type:"join-room",code}));
-      resolve();
-      return;
-    }
-
-    signalingSocket=new WebSocket(wsUrl());
-
-    signalingSocket.onopen=()=>{
-      signalingSocket.send(JSON.stringify({type:"join-room",code}));
-      resolve();
-    };
-
-    signalingSocket.onmessage=async event=>{
-      let message;
-      try{message=JSON.parse(event.data)}catch{return;}
-
-      if(message.type==="joined-room"){
-        callRole=message.role;
-        document.getElementById("callStatus").textContent=
-          message.participants===2?"Peer connected — negotiating...":"Waiting for second device...";
-        return;
-      }
-
-      if(message.type==="peer-ready"){
-        if(message.initiator){
-          await makeOffer();
-        }
-        return;
-      }
-
-      if(message.type==="offer"){
-        await ensurePeerConnection();
-        await peerConnection.setRemoteDescription(message.offer);
-        const answer=await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        sendSignal({type:"answer",answer});
-        return;
-      }
-
-      if(message.type==="answer" && peerConnection){
-        await peerConnection.setRemoteDescription(message.answer);
-        return;
-      }
-
-      if(message.type==="ice-candidate" && peerConnection && message.candidate){
-        try{await peerConnection.addIceCandidate(message.candidate)}catch(error){console.warn("ICE candidate error",error)}
-        return;
-      }
-
-      if(message.type==="peer-left"){
-        callConnected=false;
-        document.getElementById("callStatus").textContent="Peer left the call";
-        const remote=document.getElementById("remoteVideo");
-        remote.srcObject=null;
-      }
-
-      if(message.type==="room-full"){
-        toast("This call already has two devices");
-        endCall();
-      }
-    };
-
-    signalingSocket.onerror=()=>reject(new Error("Signaling connection failed"));
-    signalingSocket.onclose=()=>{
-      if(!callConnected && document.getElementById("callScreen") && !document.getElementById("callScreen").classList.contains("hidden")){
-        document.getElementById("callStatus").textContent="Connection closed";
-      }
-    };
-  });
-}
-
-function sendSignal(message){
-  if(signalingSocket && signalingSocket.readyState===WebSocket.OPEN){
-    signalingSocket.send(JSON.stringify(message));
-  }
-}
-
-async function ensurePeerConnection(){
-  if(peerConnection) return peerConnection;
-
-  peerConnection=new RTCPeerConnection(rtcConfig);
-
-  if(stream){
-    stream.getTracks().forEach(track=>peerConnection.addTrack(track,stream));
-  }
-
-  peerConnection.ontrack=event=>{
-    remoteStream=event.streams[0];
-    document.getElementById("remoteVideo").srcObject=remoteStream;
-    callConnected=true;
-    document.getElementById("callStatus").textContent="Live connection";
-  };
-
-  peerConnection.onicecandidate=event=>{
-    if(event.candidate) sendSignal({type:"ice-candidate",candidate:event.candidate});
-  };
-
-  peerConnection.onconnectionstatechange=()=>{
-    const state=peerConnection.connectionState;
-    if(state==="connected"){
-      callConnected=true;
-      document.getElementById("callStatus").textContent="Live connection";
-    }else if(state==="failed" || state==="disconnected"){
-      document.getElementById("callStatus").textContent="Connection interrupted";
-    }
-  };
-
-  return peerConnection;
-}
-
-async function makeOffer(){
-  await ensurePeerConnection();
-  const offer=await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-  sendSignal({type:"offer",offer});
-}
-
-async function switchCamera(){
-  currentFacing=currentFacing==="user"?"environment":"user";
-  if(stream){stream.getTracks().forEach(track=>track.stop());stream=null;}
-  if(peerConnection){peerConnection.close();peerConnection=null;}
-  await startCamera();
-}
-
-function toggleMic(){
-  if(!stream)return;
-  const audio=stream.getAudioTracks()[0];
-  if(audio){
-    micOn=!micOn;
-    audio.enabled=micOn;
-    document.getElementById("micBtn").textContent=micOn?"🎤":"🔇";
-  }
-}
-
-function toggleCamera(){
-  if(!stream)return;
-  const video=stream.getVideoTracks()[0];
-  if(video){
-    cameraOn=!cameraOn;
-    video.enabled=cameraOn;
-    document.getElementById("cameraBtn").textContent=cameraOn?"📷":"🚫";
-  }
-}
-
-function startTimer(){
-  clearInterval(timerInterval);
-  seconds=0;
-  timerInterval=setInterval(()=>{
-    seconds++;
-    const min=String(Math.floor(seconds/60)).padStart(2,"0");
-    const sec=String(seconds%60).padStart(2,"0");
-    document.getElementById("timer").textContent=min+":"+sec;
-  },1000);
-}
-
-function endCall(){
-  if(stream){stream.getTracks().forEach(track=>track.stop());stream=null;}
-  if(peerConnection){peerConnection.close();peerConnection=null;}
-  if(signalingSocket){
-    try{signalingSocket.send(JSON.stringify({type:"leave-room"}))}catch{}
-    signalingSocket.close();
-    signalingSocket=null;
-  }
-  remoteStream=null;
-  callConnected=false;
-  clearInterval(timerInterval);
-  document.getElementById("timer").textContent="00:00";
-  document.getElementById("remoteVideo").srcObject=null;
-  document.getElementById("localVideo").srcObject=null;
-  show("dashboard");
-  toast("Call ended");
-}
-
-function generateVideo(){
-  const file=document.getElementById("videoImage").files[0];
-  const prompt=document.getElementById("videoPrompt").value.trim();
-
-  if(!file){
-    toast("Choose an image first");
-    return;
-  }
-
-  if(!prompt){
-    toast("Describe the video");
-    return;
-  }
-
-  document.getElementById("generatedVideo")
-    .classList.remove("hidden");
-
-  toast("Video generation request created");
-}
-
-function generateImage(){
-  const prompt=document.getElementById("imagePrompt").value.trim();
-
-  if(!prompt){
-    toast("Enter an image description");
-    return;
-  }
-
-  document.getElementById("generatedImage")
-    .classList.remove("hidden");
-
-  toast("Image generation request created");
-}
-
-function toast(message){
-  const el=document.getElementById("toast");
-
-  el.textContent=message;
-  el.style.display="block";
-
-  clearTimeout(window.toastTimer);
-
-  window.toastTimer=setTimeout(()=>{
-    el.style.display="none";
-  },2500);
-}
-
-function loadUser(){
-  const name=localStorage.getItem("kelvinUserName");
-  const email=localStorage.getItem("kelvinUserEmail");
-
-  if(name){
-    document.getElementById("userName").textContent=name;
-    document.getElementById("profileName").textContent=name;
-  }
-
-  if(email){
-    document.getElementById("profileEmail").textContent=email;
-  }
-}
-
-document.addEventListener("DOMContentLoaded",()=>{
-  loadUser();
-});
+function startTimer(){clearInterval(state.timer);state.seconds=0;state.timer=setInterval(()=>{state.seconds++;$("timer").textContent=String(Math.floor(state.seconds/60)).padStart(2,"0")+":"+String(state.seconds%60).padStart(2,"0")},1000)}
+async function stopStreamOnly(){if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}if($("localVideo"))$("localVideo").srcObject=null}
+
+async function connectSignaling(){const code=(localStorage.kelvinCallCode||"").toUpperCase();if(!code)return; if(state.ws?.readyState===WebSocket.OPEN){state.ws.send(JSON.stringify({type:"join-room",code}));return}return new Promise((resolve,reject)=>{state.ws=new WebSocket(wsUrl());state.ws.onopen=()=>{state.ws.send(JSON.stringify({type:"join-room",code}));resolve()};state.ws.onerror=()=>reject(Error("Signaling connection failed"));state.ws.onmessage=async ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}
+ if(m.type==="joined-room"){state.role=m.role;$("callStatus").textContent=m.participants===2?"Peer connected — negotiating…":"Waiting for second device…"}
+ if(m.type==="peer-ready"&&m.initiator)await makeOffer();
+ if(m.type==="offer"){await ensurePeer();await state.peer.setRemoteDescription(m.offer);const a=await state.peer.createAnswer();await state.peer.setLocalDescription(a);sendSignal({type:"answer",answer:a})}
+ if(m.type==="answer"&&state.peer)await state.peer.setRemoteDescription(m.answer);
+ if(m.type==="ice-candidate"&&state.peer&&m.candidate)try{await state.peer.addIceCandidate(m.candidate)}catch{}
+ if(m.type==="peer-left"){$("callStatus").textContent="Peer left the call";state.callConnected=false}
+ if(m.type==="room-full"){toast("Call already has two devices");endCall()}
+};state.ws.onclose=()=>{if(!$("callScreen").classList.contains("hidden"))$("callStatus").textContent="Signaling disconnected"}})}
+function sendSignal(m){if(state.ws?.readyState===WebSocket.OPEN)state.ws.send(JSON.stringify(m))}
+async function ensurePeer(){if(state.peer)return;state.peer=new RTCPeerConnection(rtcConfig);if(state.stream)state.stream.getTracks().forEach(t=>state.peer.addTrack(t,state.stream));state.peer.ontrack=e=>{const r=e.streams[0];$("remoteVideo").srcObject=r;state.callConnected=true;$("callStatus").textContent="Live Kelvin connection"};state.peer.onicecandidate=e=>e.candidate&&sendSignal({type:"ice-candidate",candidate:e.candidate});state.peer.onconnectionstatechange=()=>{const s=state.peer.connectionState;if(s==="connected"){state.callConnected=true;$("callStatus").textContent="Live connection"}if(s==="failed")$("callStatus").textContent="Connection failed"}}
+async function makeOffer(){await ensurePeer();const o=await state.peer.createOffer();await state.peer.setLocalDescription(o);sendSignal({type:"offer",offer:o})}
+async function switchCamera(){state.facing=state.facing==="user"?"environment":"user";await stopStreamOnly();await startCallCamera()}
+function toggleMic(){if(!state.stream)return;const t=state.stream.getAudioTracks()[0];if(t){state.micOn=!state.micOn;t.enabled=state.micOn;$("micBtn").textContent=state.micOn?"🎤":"🔇";$("callMicState").textContent=state.micOn?"Enabled":"Muted"}}
+function toggleCamera(){if(!state.stream)return;const t=state.stream.getVideoTracks()[0];if(t){state.cameraOn=!state.cameraOn;t.enabled=state.cameraOn;$("cameraBtn").textContent=state.cameraOn?"📷":"🚫";$("callCamState").textContent=state.cameraOn?"Enabled":"Disabled"}}
+function toggleAvatarPreview(){state.avatarPreview=!state.avatarPreview;$("avatarOutput").classList.toggle("hidden",!state.avatarPreview);$("avatarBtn").textContent=state.avatarPreview?"🧑":"👁️"}
+function endCall(silent=false){clearInterval(state.timer);if(state.peer){state.peer.close();state.peer=null}if(state.ws){try{state.ws.send(JSON.stringify({type:"leave-room"}))}catch{}state.ws.close();state.ws=null}stopStreamOnly();state.callConnected=false;if(!silent){show("dashboard");toast("Call ended")}}
+async function startAvatarRenderer(){
+ const v=$("localVideo"),out=$("avatarOutput"),canvas=$("avatarCanvas");const avatar=avatarById();if(!avatar.src){out.srcObject=state.stream;$("trackingState").textContent="Live camera fallback";return}
+ try{canvas.width=640;canvas.height=960;const ctx=canvas.getContext("2d");let last=0;function draw(ts){if(!state.stream||$("callScreen").classList.contains("hidden"))return;if(ts-last<33){requestAnimationFrame(draw);return}last=ts;ctx.fillStyle="#05060b";ctx.fillRect(0,0,canvas.width,canvas.height);const img=new Image();img.onload=()=>{const scale=Math.max(canvas.width/img.width,canvas.height/img.height);const w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(canvas.width-w)/2,(canvas.height-h)/2,w,h);ctx.globalAlpha=.35;ctx.fillStyle="#4f72ff";ctx.beginPath();ctx.arc(canvas.width/2,canvas.height*.48,Math.min(canvas.width,canvas.height)*.24,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;};img.src=avatar.src;requestAnimationFrame(draw)}requestAnimationFrame(draw);out.srcObject=canvas.captureStream(30);$("trackingState").textContent="Renderer active; native tracking bridge pending"}catch(e){out.srcObject=state.stream;$("trackingState").textContent="Camera fallback"}}
+
+function prepareRecordPreview(){const src=$("recordSource").value;if(src==="avatar"&&$("avatarOutput").srcObject){$("recordPreview").srcObject=$("avatarOutput").srcObject}else if(state.stream){$("recordPreview").srcObject=state.stream}else{navigator.mediaDevices?.getUserMedia({video:{facingMode:state.facing},audio:true}).then(s=>{state.stream=s;$("recordPreview").srcObject=s}).catch(e=>toast("Camera permission required"))}}
+$("recordSource")?.addEventListener("change",prepareRecordPreview)
+function startRecording(){const s=$("recordPreview").srcObject;if(!s)return toast("No recording source is ready");let mime="video/webm;codecs=vp9,opus";if(!MediaRecorder.isTypeSupported(mime))mime="video/webm";try{state.recordChunks=[];state.recording=new MediaRecorder(s,{mimeType:mime});state.recording.ondataavailable=e=>e.data.size&&state.recordChunks.push(e.data);state.recording.onstop=()=>{const blob=new Blob(state.recordChunks,{type:state.recording.mimeType});const url=URL.createObjectURL(blob);$("recordStatus").innerHTML=`Recording complete. <a href="${url}" download="kelvin-live-recording.webm" style="color:#8da1ff">Save recording</a>`;saveGallery({type:"video",url,name:"Kelvin recording",source:"recording"})};state.recording.start(250);$("recordStatus").textContent="Recording…";$("recordStart").disabled=true}catch(e){toast(e.message)}}
+function stopRecording(){if(state.recording?.state==="recording"){state.recording.stop();$("recordStart").disabled=false}}
+
+function setVideoMode(el,m){state.videoMode=m;document.querySelectorAll("#generateVideo .tab").forEach(x=>x.classList.remove("active"));el.classList.add("active")}
+async function apiJSON(url,body){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json().catch(()=>({ok:false,error:"Invalid server response"}));if(!r.ok||d.ok===false)throw Error(d.error||"Request failed");return d}
+async function fileData(input){const f=input?.files?.[0];if(!f)return null;return {name:f.name,type:f.type,data:await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=rej;rd.readAsDataURL(f)})}}
+async function generateImage(){const prompt=$("imagePrompt").value.trim();if(!prompt)return toast("Enter an image description");const ref=await fileData($("imageReference"));engineUI("image","Queued",5,"Sending image request…");try{const d=await apiJSON("/api/ai/image",{prompt,reference:ref});if(!d.result)throw Error("Image engine returned no result");$("generatedImagePreview").src=d.result.url||d.result.data||d.result; $("generatedImage").classList.remove("hidden");state.lastGenerated={type:"image",url:$("generatedImagePreview").src,name:"Generated image"};engineUI("image","Complete",100,"Image generated by the configured provider.");saveGallery({type:"image",url:$("generatedImagePreview").src,name:"Generated image"})}catch(e){engineUI("image","Not configured",100,e.message);toast(e.message)}}
+async function generateVideo(){const media=await fileData($("videoImage"));const audio=await fileData($("videoAudio"));const prompt=$("videoPrompt").value.trim();if(!media)return toast("Choose an image or video first");engineUI("video","Queued",5,"Sending video request…");try{const d=await apiJSON("/api/ai/video",{mode:state.videoMode,prompt,media,audio,avatar:avatarById()});if(!d.result)throw Error("Video engine returned no result");$("generatedVideoPlayer").src=d.result.url||d.result.data||d.result;$("generatedVideo").classList.remove("hidden");state.lastGenerated={type:"video",url:$("generatedVideoPlayer").src,name:"Generated video"};engineUI("video","Complete",100,"Video generated by the configured provider.");saveGallery({type:"video",url:$("generatedVideoPlayer").src,name:"Generated video"})}catch(e){engineUI("video","Not configured",100,e.message);toast(e.message)}}
+function engineUI(kind,stateText,p,msg){const box=$(kind+"Engine");box.classList.remove("hidden");$(kind+"EngineState").textContent=stateText;$(kind+"Progress").style.width=p+"%";$(kind+"EngineMessage").textContent=msg}
+async function replaceMedia(){if(!$("replaceConsent").checked)return toast("Confirm authorization first");const source=await fileData($("replaceSource")),avatar=await fileData($("replaceAvatar"));if(!source||!avatar)return toast("Choose both source media and replacement avatar");engineUI("replace","Queued",5,"Sending replacement request…");try{const d=await apiJSON("/api/ai/replace",{source,avatar,prompt:$("replacePrompt").value.trim()});if(!d.result)throw Error("Replacement engine returned no result");const url=d.result.url||d.result.data||d.result;$("replaceResultMedia").innerHTML=d.result.type==="video"?`<video src="${escAttr(url)}" controls playsinline style="width:100%;border-radius:15px"></video>`:`<img src="${escAttr(url)}" style="width:100%;border-radius:15px">`;state.lastReplacement={type:d.result.type||"image",url,name:"Authorized replacement"};$("replaceResult").classList.remove("hidden");engineUI("replace","Complete",100,"Replacement completed by the configured provider.")}catch(e){engineUI("replace","Not configured",100,e.message);toast(e.message)}}
+function saveGeneratedImage(){if(state.lastGenerated?.type==="image")saveGallery(state.lastGenerated);toast("Saved to Gallery")}
+function saveGeneratedVideo(){if(state.lastGenerated?.type==="video")saveGallery(state.lastGenerated);toast("Saved to Gallery")}
+function saveReplacement(){if(state.lastReplacement)saveGallery(state.lastReplacement);toast("Saved to Gallery")}
+function saveGallery(item){const g=getGallery();g.unshift({...item,id:crypto.randomUUID(),createdAt:Date.now()});localStorage.kelvinGallery=JSON.stringify(g.slice(0,100));state.gallery=g}
+function getGallery(){try{return JSON.parse(localStorage.kelvinGallery||"[]")}catch{return[]}}
+function clearGallery(){if(confirm("Clear your local Kelvin Live gallery?")){localStorage.removeItem("kelvinGallery");renderGallery()}}
+function filterGallery(type,el){document.querySelectorAll("#gallery .tab").forEach(x=>x.classList.remove("active"));el.classList.add("active");renderGallery(type)}
+function renderGallery(type="all"){const g=getGallery().filter(x=>type==="all"||x.type===type);$("galleryGrid").innerHTML=g.length?g.map(x=>`<div class="gallery-item">${x.type==="video"?`<video src="${escAttr(x.url)}" controls playsinline></video>`:`<img src="${escAttr(x.url)}">`}<div class="gallery-label">${esc(x.name||x.type)}</div></div>`).join(""):`<div class="card" style="grid-column:1/-1"><p>No saved creations yet.</p></div>`}
+function renderHomeStatus(){$("homeStatus").innerHTML=`<div class="status-line"><span>Backend</span><strong id="homeBackend">Checking…</strong></div><div class="status-line"><span>Camera API</span><strong>${navigator.mediaDevices?.getUserMedia?"Available":"Unavailable"}</strong></div><div class="status-line"><span>WebRTC</span><strong>${window.RTCPeerConnection?"Available":"Unavailable"}</strong></div>`;fetch("/health").then(r=>r.json()).then(d=>{if($("homeBackend"))$("homeBackend").textContent=d.ok?"Online":"Offline"}).catch(()=>{if($("homeBackend"))$("homeBackend").textContent="Offline"})}
+async function checkStatus(){renderHomeStatus();$("recorderStatus").textContent=window.MediaRecorder?"Available":"Unavailable";$("webrtcStatus").textContent=window.RTCPeerConnection?"Available":"Unavailable";try{const r=await fetch("/health");const d=await r.json();$("backendStatus").textContent=d.ok?"Online":"Offline"}catch{$("backendStatus").textContent="Offline"}}
+document.addEventListener("DOMContentLoaded",()=>{loadUser();state.avatars=[...defaultAvatars(),...getAvatars()];state.selectedAvatar=localStorage.kelvinSelectedAvatar||"default-1";checkStatus()});
 </script>
-
 </body>
 </html>
