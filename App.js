@@ -7,13 +7,37 @@ import {
   StyleSheet,
   StatusBar,
 } from 'react-native';
+import {
+  CameraView,
+  useCameraPermissions,
+} from 'expo-camera';
 
 export default function App() {
   const [started, setStarted] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+
+  async function startCamera() {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+
+      if (!result.granted) {
+        return;
+      }
+    }
+
+    setStarted(true);
+  }
+
+  function stopCamera() {
+    setStarted(false);
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#ffffff"
+      />
 
       <View style={styles.container}>
 
@@ -24,21 +48,28 @@ export default function App() {
               <Text style={styles.logoK}>K</Text>
             </View>
 
-            <Text style={styles.title}>Kelvin Live</Text>
+            <Text style={styles.title}>
+              Kelvin Live
+            </Text>
 
             <Text style={styles.subtitle}>
               Real-time avatar video technology
             </Text>
 
             <Pressable
-              onPress={() => setStarted(true)}
+              onPress={startCamera}
               style={({ pressed }) => [
                 styles.button,
                 pressed && styles.buttonPressed,
               ]}
             >
-              <Text style={styles.buttonText}>Start Camera</Text>
-              <Text style={styles.arrow}>→</Text>
+              <Text style={styles.buttonText}>
+                Start Camera
+              </Text>
+
+              <Text style={styles.arrow}>
+                →
+              </Text>
             </Pressable>
 
           </View>
@@ -46,6 +77,7 @@ export default function App() {
           <View style={styles.cameraScreen}>
 
             <View style={styles.cameraHeader}>
+
               <View>
                 <Text style={styles.cameraTitle}>
                   Kelvin Live
@@ -57,26 +89,38 @@ export default function App() {
               </View>
 
               <View style={styles.liveBadge}>
+
                 <View style={styles.dot} />
 
                 <Text style={styles.liveText}>
                   LIVE
                 </Text>
+
               </View>
+
             </View>
 
             <View style={styles.cameraFrame}>
-              <Text style={styles.cameraAreaText}>
-                Camera area
-              </Text>
 
-              <Text style={styles.testText}>
-                Web interface is working.
-              </Text>
+              <CameraView
+                style={styles.camera}
+                facing="front"
+              />
+
+              <View style={styles.cameraOverlay}>
+                <Text style={styles.cameraAreaText}>
+                  Kelvin Live
+                </Text>
+
+                <Text style={styles.testText}>
+                  Camera is active
+                </Text>
+              </View>
+
             </View>
 
             <Pressable
-              onPress={() => setStarted(false)}
+              onPress={stopCamera}
               style={styles.secondaryButton}
             >
               <Text style={styles.secondaryText}>
@@ -236,8 +280,22 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#111827',
+    position: 'relative',
+  },
+
+  camera: {
+    width: '100%',
+    height: '100%',
+  },
+
+  cameraOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingVertical: 24,
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
 
   cameraAreaText: {
@@ -260,6 +318,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 28,
     paddingVertical: 12,
+    backgroundColor: '#fff',
   },
 
   secondaryText: {
