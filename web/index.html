@@ -666,7 +666,7 @@ padding-right:12px}
 <div class="auth-divider">
 <span>Preview access</span>
 </div>
-<p class="auth-note">This preview opens the complete Kelvin Live app locally. Production account authentication can be connected to the server without changing this screen.</p>
+<p class="auth-note">This preview opens the complete Kelvin Live app locally. When the Kelvin Live server is available, this screen uses the server account, session token and protected AI/gallery services.</p>
 <div class="auth-status" id="authStatus">Ready</div>
 </div>
 <div class="card auth-help-card">
@@ -1111,7 +1111,7 @@ padding-right:12px}
 <div id="toast" class="toast">
 </div>
 <script>
-const state={authMode:'login',selectedAvatar:localStorage.kelvinSelectedAvatar||'default-1',avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:localStorage.kelvinFacing||'user',seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],recordStream:null,videoMode:'image-to-video',lastGenerated:null,lastReplacement:null,avatarPreview:true,faceLoop:null,recordingSource:'camera'};
+const state={authMode:'login',selectedAvatar:localStorage.kelvinSelectedAvatar||'default-1',avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:localStorage.kelvinFacing||'user',seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],recordStream:null,videoMode:'image-to-video',lastGenerated:null,lastReplacement:null,avatarPreview:true,faceLoop:null,recordingSource:'camera',authToken:localStorage.kelvinAuthToken||'',serverGallery:[],serverAvatarSession:null};
 const rtcConfig={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const $=id=>document.getElementById(id);
 function toast(m){const e=$('toast');e.textContent=m;e.style.display='block';clearTimeout(window._toast);window._toast=setTimeout(()=>e.style.display='none',3200)}
@@ -1207,11 +1207,14 @@ async function login(){
   toast(state.authMode==='signup'?'Preview account created':'Signed in to preview');
   return true;
 }
-function logout(){
+async function logout(){
+  try{if(state.authToken)await fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+state.authToken}})}catch{}
   endCall(true);
   localStorage.removeItem('kelvinUserName');
   localStorage.removeItem('kelvinUserEmail');
   localStorage.removeItem('kelvinAuthMode');
+  localStorage.removeItem('kelvinAuthToken');
+  state.authToken='';
   localStorage.removeItem('kelvinRemembered');
   setAuthMode('login');
   show('welcome');
@@ -1250,9 +1253,20 @@ function selectAvatar(id){state.selectedAvatar=id;localStorage.kelvinSelectedAva
 function avatarById(){return state.avatars.find(a=>a.id===state.selectedAvatar)||defaultAvatars()[0]}
 let pendingAvatarFile=null;
 function addAvatar(e){pendingAvatarFile=e.target.files[0]||null;if(pendingAvatarFile)toast('Image loaded. Confirm authorization and save it.')}
-function saveUploadedAvatar(){if(!pendingAvatarFile)return toast('Choose an image first');if(!$('avatarConsent').checked)return toast('Confirm you are authorized to use this image');const reader=new FileReader();reader.onload=()=>{const a={id:'avatar-'+(crypto.randomUUID?.()||Date.now()),name:pendingAvatarFile.name.replace(/\.[^.]+$/,'').slice(0,30)||'My Avatar',src:reader.result,consent:true,createdAt:Date.now(),type:'avatar'};const arr=getAvatars();arr.push(a);localStorage.kelvinAvatars=JSON.stringify(arr);state.selectedAvatar=a.id;localStorage.kelvinSelectedAvatar=a.id;pendingAvatarFile=null;$('avatarConsent').checked=false;$('avatarFile').value='';renderAvatars();saveGallery({type:'avatar',url:a.src,name:a.name});toast('Authorized avatar saved')};reader.readAsDataURL(pendingAvatarFile)}
+async function saveUploadedAvatar(){
+  if(!pendingAvatarFile)return toast('Choose an image first');
+  if(!$('avatarConsent').checked)return toast('Confirm you are authorized to use this image');
+  const file=pendingAvatarFile;const reader=new FileReader();
+  reader.onload=async()=>{
+    const localSrc=reader.result;const id='avatar-'+(crypto.randomUUID?.()||Date.now());
+    await recordServerConsent(id,file.name);
+    const uploaded=await serverUploadDataUrl(localSrc,file.name,'avatar');
+    const a={id,name:file.name.replace(/\.[^.]+$/,'').slice(0,30)||'My Avatar',src:uploaded?.url||localSrc,serverUrl:uploaded?.url||null,consent:true,createdAt:Date.now(),type:'avatar'};
+    const arr=getAvatars();arr.push(a);localStorage.kelvinAvatars=JSON.stringify(arr);state.selectedAvatar=a.id;localStorage.kelvinSelectedAvatar=a.id;pendingAvatarFile=null;$('avatarConsent').checked=false;$('avatarFile').value='';renderAvatars();saveGallery({type:'avatar',url:a.src,name:a.name});toast(uploaded?'Authorized avatar saved to server':'Authorized avatar saved locally');
+  };reader.readAsDataURL(file)
+}
 function wsUrl(){return(location.protocol==='https:'?'wss':'ws')+'://'+location.host}
-async function startCallCamera(){if(state.stream)return;try{state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('localVideo').srcObject=state.stream;$('callCamState').textContent='Ready';$('callMicState').textContent='Ready';$('callStatus').textContent='Camera ready — connecting…';$('callAvatarState').textContent=avatarById().name;startTimer();await startAvatarRenderer();await connectSignaling()}catch(e){$('callStatus').textContent='Camera/microphone permission required';toast(e.message||'Allow camera and microphone')}}
+async function startCallCamera(){if(state.stream)return;try{state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('localVideo').srcObject=state.stream;$('callCamState').textContent='Ready';$('callMicState').textContent='Ready';$('callStatus').textContent='Camera ready — connecting…';$('callAvatarState').textContent=avatarById().name;startTimer();await startAvatarRenderer();await startAvatarSession();await connectSignaling()}catch(e){$('callStatus').textContent='Camera/microphone permission required';toast(e.message||'Allow camera and microphone')}}
 function startTimer(){clearInterval(state.timer);state.seconds=0;state.timer=setInterval(()=>{state.seconds++;$('timer').textContent=String(Math.floor(state.seconds/60)).padStart(2,'0')+':'+String(state.seconds%60).padStart(2,'0')},1000)}
 async function stopStreamOnly(){if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}if($('localVideo'))$('localVideo').srcObject=null;if(state.faceLoop){cancelAnimationFrame(state.faceLoop);state.faceLoop=null}}
 async function connectSignaling(){const code=(localStorage.kelvinCallCode||'').toUpperCase();if(!code)return;if(state.ws?.readyState===WebSocket.OPEN){state.ws.send(JSON.stringify({type:'join-room',code}));return}return new Promise((resolve,reject)=>{state.ws=new WebSocket(wsUrl());state.ws.onopen=()=>{state.ws.send(JSON.stringify({type:'join-room',code}));resolve()};state.ws.onerror=()=>reject(Error('Signaling connection failed'));state.ws.onmessage=async ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}if(m.type==='joined-room'){state.role=m.role;$('callStatus').textContent=m.participants===2?'Peer connected — negotiating…':'Waiting for second device…';$('peerState').textContent=m.participants===2?'Connected':'Waiting'}if(m.type==='peer-ready'&&m.initiator)await makeOffer();if(m.type==='offer'){await ensurePeer();await state.peer.setRemoteDescription(m.offer);const a=await state.peer.createAnswer();await state.peer.setLocalDescription(a);sendSignal({type:'answer',answer:a})}if(m.type==='answer'&&state.peer)await state.peer.setRemoteDescription(m.answer);if(m.type==='ice-candidate'&&state.peer&&m.candidate)try{await state.peer.addIceCandidate(m.candidate)}catch{}if(m.type==='peer-left'){$('callStatus').textContent='Peer left the call';$('peerState').textContent='Disconnected';state.callConnected=false}if(m.type==='room-full'){toast('Call already has two devices');endCall()}};state.ws.onclose=()=>{if(!$('callScreen').classList.contains('hidden'))$('callStatus').textContent='Signaling disconnected'}})}
@@ -1329,23 +1343,85 @@ function startRecording(){const s=$('recordPreview').srcObject||state.recordStre
 function stopRecording(){if(state.recording?.state==='recording'){state.recording.stop();$('recordStart').disabled=false}}
 function setVideoMode(el,m){state.videoMode=m;document.querySelectorAll('#generateVideo .tab').forEach(x=>x.classList.remove('active'));el.classList.add('active')}
 async function fileData(input){const f=input?.files?.[0];if(!f)return null;return{name:f.name,type:f.type,size:f.size,data:await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=rej;rd.readAsDataURL(f)})}}
-async function apiJSON(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(!r.ok||d.ok===false)throw Error(d.error||'Request failed');return d}
+async function apiJSON(url,body,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(state.authToken)headers.Authorization='Bearer '+state.authToken;const r=await fetch(url,{method:options.method||'POST',headers,body:JSON.stringify(body)});const d=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(r.status===401&&state.authToken){state.authToken='';localStorage.removeItem('kelvinAuthToken');toast('Your server session expired. Please sign in again.');throw Error('Authentication required')}if(!r.ok||d.ok===false)throw Error(d.error||'Request failed');return d}
 function engineUI(kind,text,p,msg){const box=$(kind+'Engine');box.classList.remove('hidden');$(kind+'EngineState').textContent=text;$(kind+'Progress').style.width=p+'%';$(kind+'EngineMessage').textContent=msg}
-async function waitJob(id,kind,onResult){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));try{const r=await fetch('/api/jobs/'+encodeURIComponent(id));const d=await r.json();const j=d.job||d;if(j.progress!=null)engineUI(kind,j.status||'Processing',Math.max(5,Math.min(99,j.progress)),j.message||'Processing…');if(['completed','complete','succeeded'].includes(String(j.status).toLowerCase())){onResult(j.result||j);return}if(['failed','error','cancelled'].includes(String(j.status).toLowerCase()))throw Error(j.error||j.message||'Generation failed')}catch(e){throw e}}throw Error('Generation timed out')}
+async function waitJob(id,kind,onResult){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));try{const r=await fetch('/api/jobs/'+encodeURIComponent(id),{headers:state.authToken?{Authorization:'Bearer '+state.authToken}:{}});const d=await r.json();const j=d.job||d;if(j.progress!=null)engineUI(kind,j.status||'Processing',Math.max(5,Math.min(99,j.progress)),j.message||'Processing…');if(['completed','complete','succeeded'].includes(String(j.status).toLowerCase())){onResult(j.result||j);return}if(['failed','error','cancelled'].includes(String(j.status).toLowerCase()))throw Error(j.error||j.message||'Generation failed')}catch(e){throw e}}throw Error('Generation timed out')}
 function resultURL(r){return r?.url||r?.data||r?.output?.url||r?.output?.data||r}
-async function generateImage(){const prompt=$('imagePrompt').value.trim();if(!prompt)return toast('Enter an image description');const ref=await fileData($('imageReference'));engineUI('image','Queued',5,'Sending image request…');try{const d=await apiJSON('/api/ai/image',{prompt,reference:ref});if(d.jobId||d.job?.id){engineUI('image','Processing',10,'Image generation is running…');await waitJob(d.jobId||d.job.id,'image',r=>{$('generatedImagePreview').src=resultURL(r)})}else{$('generatedImagePreview').src=resultURL(d.result)}if(!$('generatedImagePreview').src)throw Error('Image engine returned no output');$('generatedImage').classList.remove('hidden');state.lastGenerated={type:'image',url:$('generatedImagePreview').src,name:'Generated image'};engineUI('image','Complete',100,'Image generated by the configured engine.');if(getPrivacy())saveGallery(state.lastGenerated)}catch(e){engineUI('image','Failed',100,e.message);toast(e.message)}}
-async function generateVideo(){const media=await fileData($('videoImage')),audio=await fileData($('videoAudio')),prompt=$('videoPrompt').value.trim();if(!media)return toast('Choose an image or video from your phone first');engineUI('video','Queued',5,'Sending video request…');try{const d=await apiJSON('/api/ai/video',{mode:state.videoMode,prompt,media,audio,avatar:avatarById()});let result;if(d.jobId||d.job?.id){engineUI('video','Processing',10,'Video generation is running…');await waitJob(d.jobId||d.job.id,'video',r=>result=r)}else result=d.result;const url=resultURL(result);if(!url)throw Error('Video engine returned no output');$('generatedVideoPlayer').src=url;$('generatedVideo').classList.remove('hidden');state.lastGenerated={type:'video',url,name:'Generated video'};engineUI('video','Complete',100,'Video generated by the configured engine.');if(getPrivacy())saveGallery(state.lastGenerated)}catch(e){engineUI('video','Failed',100,e.message);toast(e.message)}}
-async function replaceMedia(){if(!$('replaceConsent').checked)return toast('Confirm authorization first');const source=await fileData($('replaceSource')),avatar=await fileData($('replaceAvatar'));if(!source||!avatar)return toast('Choose both source media and replacement avatar');engineUI('replace','Queued',5,'Sending replacement request…');try{const d=await apiJSON('/api/ai/replace',{source,avatar,prompt:$('replacePrompt').value.trim(),consent:true});let result;if(d.jobId||d.job?.id){engineUI('replace','Processing',10,'Replacement is running…');await waitJob(d.jobId||d.job.id,'replace',r=>result=r)}else result=d.result;const url=resultURL(result);if(!url)throw Error('Replacement engine returned no output');const isVideo=(result?.type||source.type).startsWith('video');$('replaceResultMedia').innerHTML=isVideo?`<video src="${escAttr(url)}" controls playsinline style="width:100%;border-radius:15px"></video>`:`<img src="${escAttr(url)}" style="width:100%;border-radius:15px">`;state.lastReplacement={type:isVideo?'video':'image',url,name:'Authorized replacement'};$('replaceResult').classList.remove('hidden');engineUI('replace','Complete',100,'Replacement completed by the configured engine.');if(getPrivacy())saveGallery(state.lastReplacement)}catch(e){engineUI('replace','Failed',100,e.message);toast(e.message)}}
+async function generateImage(){
+  const prompt=$('imagePrompt').value.trim();if(!prompt)return toast('Enter an image description');
+  const ref=await fileData($('imageReference'));engineUI('image','Queued',5,'Sending image request…');
+  try{
+    const endpoint=ref?'/api/ai/image-edit':'/api/ai/image';
+    const body=ref?{imageDataUrl:ref.data,prompt}:{prompt};
+    const d=await apiJSON(endpoint,body);let result;
+    if(d.jobId||d.job?.id){engineUI('image','Processing',10,'Image generation is running on the server…');await waitJob(d.jobId||d.job.id,'image',r=>result=r)}else result=d.result;
+    const url=resultURL(result);if(!url)throw Error('Image engine returned no output');
+    $('generatedImagePreview').src=url;$('generatedImage').classList.remove('hidden');state.lastGenerated={type:'image',url,name:ref?'Edited image':'Generated image'};
+    engineUI('image','Complete',100,ref?'Image edit completed by the configured engine.':'Image generated by the configured engine.');syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
+  }catch(e){engineUI('image','Failed',100,e.message);toast(e.message)}
+}
+async function generateVideo(){
+  const media=await fileData($('videoImage')),audio=await fileData($('videoAudio')),prompt=$('videoPrompt').value.trim(),avatar=avatarById();
+  if(!media&&!prompt)return toast('Choose media or enter a generation prompt first');
+  engineUI('video','Queued',5,'Sending request to the configured video engine…');
+  try{
+    let endpoint='/api/ai/video',body={mode:state.videoMode,prompt,audioDataUrl:audio?.data||null};
+    if(state.videoMode==='talking-avatar'){
+      endpoint='/api/ai/talking-avatar';
+      body={prompt:prompt||'Animate this authorized avatar.',avatarImage:avatar?.src||null,audioDataUrl:audio?.data||null,authorized:true,consent:true};
+      if(!body.avatarImage)return toast('Choose an uploaded avatar before using Talking Avatar.');
+    }else if(state.videoMode==='video-avatar'){
+      endpoint='/api/ai/replace';
+      body={sourceVideo:media?.data||null,avatarImage:avatar?.src||null,prompt:prompt||'Replace the authorized subject while preserving the source movement and performance.',consent:true,authorized:true};
+      if(!body.sourceVideo||!body.avatarImage)return toast('Choose a source video and an authorized avatar first.');
+    }else if(media){
+      if(media.type.startsWith('video/'))body.sourceVideo=media.data;else body.image=media.data;
+    }
+    const d=await apiJSON(endpoint,body);
+    let result;if(d.jobId||d.job?.id){engineUI('video','Processing',10,'Video generation is running on the server…');await waitJob(d.jobId||d.job.id,'video',r=>result=r)}else result=d.result;
+    const url=resultURL(result);if(!url)throw Error('Video engine returned no output');
+    $('generatedVideoPlayer').src=url;$('generatedVideo').classList.remove('hidden');state.lastGenerated={type:'video',url,name:'Generated video'};
+    engineUI('video','Complete',100,'Video generated by the configured engine.');syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
+  }catch(e){engineUI('video','Failed',100,e.message);toast(e.message)}
+}
+async function replaceMedia(){
+  if(!$('replaceConsent').checked)return toast('Confirm authorization first');
+  const source=await fileData($('replaceSource')),avatar=await fileData($('replaceAvatar'));
+  if(!source||!avatar)return toast('Choose both source media and replacement avatar');
+  engineUI('replace','Queued',5,'Sending replacement request…');
+  try{
+    const d=await apiJSON('/api/ai/replace',{sourceVideo:source.data,avatarImage:avatar.data,prompt:$('replacePrompt').value.trim(),consent:true,authorized:true});
+    let result;if(d.jobId||d.job?.id){engineUI('replace','Processing',10,'Replacement is running on the server…');await waitJob(d.jobId||d.job.id,'replace',r=>result=r)}else result=d.result;
+    const url=resultURL(result);if(!url)throw Error('Replacement engine returned no output');
+    const isVideo=(result?.type||source.type).startsWith('video');$('replaceResultMedia').innerHTML=isVideo?`<video src="${escAttr(url)}" controls playsinline style="width:100%;border-radius:15px"></video>`:`<img src="${escAttr(url)}" style="width:100%;border-radius:15px">`;
+    state.lastReplacement={type:isVideo?'video':'image',url,name:'Authorized replacement'};$('replaceResult').classList.remove('hidden');engineUI('replace','Complete',100,'Replacement completed by the configured engine.');syncServerGallery();if(getPrivacy())saveGallery(state.lastReplacement);
+  }catch(e){engineUI('replace','Failed',100,e.message);toast(e.message)}
+}
 function saveGeneratedImage(){if(state.lastGenerated?.type==='image'){saveGallery(state.lastGenerated);toast('Saved to Gallery')}}function saveGeneratedVideo(){if(state.lastGenerated?.type==='video'){saveGallery(state.lastGenerated);toast('Saved to Gallery')}}function saveReplacement(){if(state.lastReplacement){saveGallery(state.lastReplacement);toast('Saved to Gallery')}}
-function saveGallery(item){if(!getPrivacy())return;const g=getGallery();g.unshift({...item,id:crypto.randomUUID?.()||Date.now(),createdAt:Date.now()});try{localStorage.kelvinGallery=JSON.stringify(g.slice(0,100));state.gallery=g}catch(e){toast('Storage limit reached; download the file instead.')}}
+function saveGallery(item){if(!getPrivacy())return;const g=getGallery();const exists=g.some(x=>x.url===item.url&&x.type===item.type);if(exists)return;g.unshift({...item,id:crypto.randomUUID?.()||Date.now(),createdAt:Date.now()});try{localStorage.kelvinGallery=JSON.stringify(g.slice(0,100));state.gallery=g}catch(e){toast('Storage limit reached; server gallery remains available.')}}
 function getGallery(){try{return JSON.parse(localStorage.kelvinGallery||'[]')}catch{return[]}}
-function clearGallery(){if(confirm('Clear your local Kelvin Live gallery?')){localStorage.removeItem('kelvinGallery');renderGallery()}}
+async function clearGallery(){if(!confirm('Clear your Kelvin Live gallery?'))return;localStorage.removeItem('kelvinGallery');try{for(const item of (state.serverGallery||[])){if(item.id)await fetch('/api/gallery/'+encodeURIComponent(item.id),{method:'DELETE',headers:state.authToken?{Authorization:'Bearer '+state.authToken}:{}})} }catch{}state.serverGallery=[];renderGallery();toast('Gallery cleared') }
 function filterGallery(type,el){document.querySelectorAll('#gallery .tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');renderGallery(type)}
-function renderGallery(type='all'){const g=getGallery().filter(x=>type==='all'||x.type===type);$('galleryGrid').innerHTML=g.length?g.map(x=>`<div class="gallery-item">${x.type==='video'?`<video src="${escAttr(x.url)}" controls playsinline></video>`:`<img src="${escAttr(x.url)}">`}<div class="gallery-label">${esc(x.name||x.type)}</div></div>`).join(''):`<div class="card" style="grid-column:1/-1"><p>No saved creations yet.</p></div>`}
+function renderGallery(type='all'){const local=getGallery();const server=state.serverGallery||[];const merged=[...server.map(x=>({id:x.id,type:x.type,url:x.url,name:x.title||x.name,createdAt:x.createdAt,server:true})),...local];const seen=new Set();const g=merged.filter(x=>(type==='all'||x.type===type)&&x.url).filter(x=>{const k=(x.type||'')+'|'+x.url;if(seen.has(k))return false;seen.add(k);return true});$('galleryGrid').innerHTML=g.length?g.map(x=>`<div class="gallery-item">${x.type==='video'?`<video src="${escAttr(x.url)}" controls playsinline></video>`:`<img src="${escAttr(x.url)}">`}<div class="gallery-label">${esc(x.name||x.type)}</div></div>`).join(''):`<div class="card" style="grid-column:1/-1"><p>No saved creations yet.</p></div>`}
+async function serverUploadDataUrl(dataUrl,name,type='image'){
+  if(!dataUrl)return null;
+  try{const d=await apiJSON('/api/media/upload',{dataUrl,name,type});return d.upload||null}catch(e){console.warn('Server upload unavailable',e);return null}
+}
+async function recordServerConsent(assetId,subjectName){
+  try{return await apiJSON('/api/consent',{assetId,subjectName,authorized:true,notes:'Kelvin Live authorized media confirmation.'})}catch(e){console.warn('Consent sync unavailable',e);return null}
+}
+async function syncServerGallery(){
+  try{const r=await fetch('/api/gallery?limit=200',{headers:state.authToken?{Authorization:'Bearer '+state.authToken}:{}});const d=await r.json();if(r.ok&&d.ok){state.serverGallery=d.items||[];if(!$('gallery').classList.contains('hidden'))renderGallery();return state.serverGallery}}catch(e){console.warn('Gallery sync unavailable',e)}
+  return state.serverGallery||[]
+}
+async function startAvatarSession(){
+  const a=avatarById();if(!a)return null;
+  try{const d=await apiJSON('/api/avatar/session',{avatarId:a.id,avatarUrl:a.src||'',mode:'live',hands:false});state.serverAvatarSession=d.session||d;return state.serverAvatarSession}catch(e){console.warn('Avatar session unavailable',e);return null}
+}
 function getPrivacy(){return $('localSaveToggle')?.checked!==false&&localStorage.kelvinLocalSave!=='0'}function savePrivacySetting(){localStorage.kelvinLocalSave=$('localSaveToggle').checked?'1':'0';toast($('localSaveToggle').checked?'Local saving enabled':'Local saving disabled')}
-function renderHomeStatus(){$('homeStatus').innerHTML='<div class="status-line"><span>Backend</span><strong id="homeBackend">Checking…</strong></div><div class="status-line"><span>Camera API</span><strong>'+(navigator.mediaDevices?.getUserMedia?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>WebRTC</span><strong>'+(window.RTCPeerConnection?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>AI API</span><strong id="homeAI">Checking…</strong></div>';fetch('/health').then(r=>r.json()).then(d=>{$('homeBackend').textContent=d.ok?'Online':'Offline';$('homeAI').textContent=d.engines?'Engines available':'Server online'}).catch(()=>{$('homeBackend').textContent='Offline';$('homeAI').textContent='Unavailable'})}
+function renderHomeStatus(){$('homeStatus').innerHTML='<div class="status-line"><span>Backend</span><strong id="homeBackend">Checking…</strong></div><div class="status-line"><span>Account</span><strong id="homeAccount">'+(state.authToken?'Connected':'Preview')+'</strong></div><div class="status-line"><span>Camera API</span><strong>'+(navigator.mediaDevices?.getUserMedia?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>WebRTC</span><strong>'+(window.RTCPeerConnection?'Available':'Unavailable')+'</strong></div><div class="status-line"><span>AI API</span><strong id="homeAI">Checking…</strong></div>';fetch('/health').then(r=>r.json()).then(d=>{$('homeBackend').textContent=d.ok?'Online':'Offline';$('homeAI').textContent=d.engines?'Configured / server ready':'Server online';syncServerGallery()}).catch(()=>{$('homeBackend').textContent='Offline';$('homeAI').textContent='Unavailable'})}
 async function checkStatus(){renderHomeStatus();$('recorderStatus').textContent=window.MediaRecorder?'Available':'Unavailable';$('webrtcStatus').textContent=window.RTCPeerConnection?'Available':'Unavailable';$('faceStatus').textContent='FaceDetector' in window?'Available':'Not available in this browser';try{const r=await fetch('/health');const d=await r.json();$('backendStatus').textContent=d.ok?'Online':'Offline'}catch{$('backendStatus').textContent='Offline'}}
-document.addEventListener('DOMContentLoaded',()=>{loadUser();state.avatars=[...defaultAvatars(),...getAvatars()];state.selectedAvatar=localStorage.kelvinSelectedAvatar||'default-1';if($('localSaveToggle'))$('localSaveToggle').checked=getPrivacy();checkStatus();window.addEventListener('beforeunload',()=>{try{if(state.recordStream)state.recordStream.getTracks().forEach(t=>t.stop());if(state.stream)state.stream.getTracks().forEach(t=>t.stop())}catch{}})});
+document.addEventListener('DOMContentLoaded',()=>{loadUser();state.authToken=localStorage.kelvinAuthToken||'';state.avatars=[...defaultAvatars(),...getAvatars()];state.selectedAvatar=localStorage.kelvinSelectedAvatar||'default-1';if($('localSaveToggle'))$('localSaveToggle').checked=getPrivacy();checkStatus();syncServerGallery();window.addEventListener('beforeunload',()=>{try{if(state.recordStream)state.recordStream.getTracks().forEach(t=>t.stop());if(state.stream)state.stream.getTracks().forEach(t=>t.stop())}catch{}})});
 
 </script>
 <script>
