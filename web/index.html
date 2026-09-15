@@ -1,120 +1,806 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kelvin Live</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Kelvin Live</title>
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  font-family:Arial,sans-serif;
+  background:#05060b;
+  color:#fff;
+}
+button,input{font:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Arial, sans-serif;
-      background: #000;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+.screen{
+  min-height:100vh;
+  width:100%;
+}
 
-    .container {
-      width: 100%;
-      max-width: 500px;
-      padding: 30px 24px;
-      text-align: center;
-    }
+.container{
+  width:100%;
+  max-width:520px;
+  margin:auto;
+  padding:28px 20px;
+}
 
-    .logo {
-      width: 90px;
-      height: 90px;
-      margin: 0 auto 24px;
-      border-radius: 50%;
-      background: #fff;
-      color: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      font-weight: bold;
-    }
+.logo{
+  width:82px;
+  height:82px;
+  margin:0 auto 20px;
+  border-radius:50%;
+  background:linear-gradient(135deg,#fff,#aebcff);
+  color:#05060b;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:32px;
+  font-weight:900;
+  box-shadow:0 0 35px #526dff55;
+}
 
-    h1 {
-      margin: 0 0 12px;
-      font-size: 38px;
-    }
+h1{font-size:38px;margin:0 0 10px}
+h2{margin:0 0 8px;font-size:27px}
+h3{margin:0 0 6px}
+p{color:#aeb3c2;line-height:1.5}
 
-    .subtitle {
-      margin: 0 0 35px;
-      font-size: 18px;
-      color: #ccc;
-    }
+.center{text-align:center}
 
-    button {
-      border: 0;
-      border-radius: 12px;
-      padding: 16px 32px;
-      font-size: 18px;
-      font-weight: bold;
-      cursor: pointer;
-      background: #fff;
-      color: #000;
-    }
+.btn{
+  width:100%;
+  border:0;
+  border-radius:15px;
+  padding:16px;
+  font-weight:800;
+  color:#fff;
+  background:linear-gradient(135deg,#3867ff,#8b4dff);
+  box-shadow:0 8px 25px #3867ff33;
+  margin-top:10px;
+}
 
-    button:active {
-      transform: scale(0.97);
-    }
+.btn.secondary{
+  background:#151925;
+  box-shadow:none;
+}
 
-    .footer {
-      margin-top: 60px;
-      font-size: 13px;
-      color: #888;
-    }
-  </style>
+.btn.light{
+  background:#fff;
+  color:#05060b;
+}
+
+.card{
+  background:#10131d;
+  border:1px solid #202536;
+  border-radius:20px;
+  padding:18px;
+  margin:12px 0;
+}
+
+.input{
+  width:100%;
+  padding:15px;
+  border-radius:13px;
+  border:1px solid #292e40;
+  background:#0d1018;
+  color:#fff;
+  outline:none;
+  margin:7px 0;
+}
+
+.input:focus{border-color:#657cff}
+
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:22px;
+}
+
+.back{
+  border:0;
+  background:#151925;
+  color:#fff;
+  border-radius:12px;
+  padding:10px 14px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+.feature{
+  min-height:145px;
+  border-radius:20px;
+  padding:20px;
+  border:1px solid #252a3a;
+  background:linear-gradient(145deg,#121622,#0b0d14);
+}
+
+.icon{font-size:30px;margin-bottom:18px}
+
+.avatar{
+  border:2px solid transparent;
+  border-radius:18px;
+  background:#151925;
+  padding:15px;
+  text-align:center;
+}
+.avatar.selected{border-color:#637cff}
+
+.avatar-circle{
+  width:72px;
+  height:72px;
+  margin:auto auto 10px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:30px;
+  background:linear-gradient(135deg,#3867ff,#9a4dff);
+}
+
+.call-code{
+  font-size:28px;
+  font-weight:900;
+  letter-spacing:3px;
+  text-align:center;
+  padding:18px;
+  background:#080a10;
+  border-radius:15px;
+  margin:15px 0;
+}
+
+.video-wrap{
+  position:relative;
+  width:100%;
+  aspect-ratio:9/16;
+  max-height:65vh;
+  background:#000;
+  border-radius:22px;
+  overflow:hidden;
+  border:1px solid #252a3a;
+}
+
+video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.call-label{
+  position:absolute;
+  top:15px;
+  left:15px;
+  padding:8px 12px;
+  border-radius:20px;
+  background:#0009;
+}
+
+.controls{
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  margin-top:15px;
+}
+
+.control{
+  width:54px;
+  height:54px;
+  border:0;
+  border-radius:50%;
+  background:#191d29;
+  color:#fff;
+  font-size:20px;
+}
+
+.control.end{background:#e43e4d}
+
+.gallery{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+.gallery-item{
+  aspect-ratio:1;
+  border-radius:17px;
+  background:linear-gradient(135deg,#202b55,#713da0);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:35px;
+}
+
+.nav{
+  position:fixed;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:100%;
+  max-width:520px;
+  background:#090b12ee;
+  backdrop-filter:blur(15px);
+  border-top:1px solid #202536;
+  display:flex;
+  justify-content:space-around;
+  padding:10px 5px;
+}
+
+.nav button{
+  background:none;
+  border:0;
+  color:#858b9d;
+  font-size:11px;
+}
+
+.nav button.active{color:#7890ff}
+
+.toast{
+  position:fixed;
+  left:50%;
+  bottom:85px;
+  transform:translateX(-50%);
+  background:#fff;
+  color:#000;
+  padding:12px 18px;
+  border-radius:12px;
+  font-weight:bold;
+  display:none;
+  z-index:100;
+}
+
+@media(min-width:700px){
+  .container{padding-top:45px}
+}
+</style>
 </head>
 
 <body>
 
-  <main class="container">
-
+<!-- WELCOME -->
+<section id="welcome" class="screen">
+  <div class="container center" style="padding-top:12vh">
     <div class="logo">K</div>
-
     <h1>Kelvin Live</h1>
+    <p>Real-time avatar video technology</p>
+    <button class="btn light" onclick="show('auth')">Get Started</button>
+  </div>
+</section>
 
-    <p class="subtitle">
-      Real-time avatar video technology
-    </p>
-
-    <button id="getStarted" type="button">
-      Get Started
-    </button>
-
-    <div class="footer">
-      Kelvin Live
+<!-- AUTH -->
+<section id="auth" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="show('welcome')">←</button>
+      <strong>Kelvin Live</strong>
+      <span></span>
     </div>
 
-  </main>
+    <div class="card">
+      <h2 id="authTitle">Welcome back</h2>
+      <p id="authText">Sign in to continue to Kelvin Live.</p>
 
-  <script>
-    function startKelvinLive() {
-      window.location.href = "/app/";
-    }
+      <input id="nameInput" class="input hidden" placeholder="Full name">
+      <input id="emailInput" class="input" type="email" placeholder="Email address">
+      <input id="passwordInput" class="input" type="password" placeholder="Password">
 
-    function initializeKelvinLive() {
-      const getStartedButton = document.getElementById("getStarted");
+      <button class="btn" onclick="login()">Continue</button>
 
-      if (!getStartedButton) {
-        return;
-      }
+      <button class="btn secondary" onclick="toggleAuth()">
+        <span id="authToggle">Create an account</span>
+      </button>
+    </div>
+  </div>
+</section>
 
-      getStartedButton.addEventListener("click", startKelvinLive);
-    }
+<!-- DASHBOARD -->
+<section id="dashboard" class="screen hidden">
+  <div class="container" style="padding-bottom:100px">
 
-    document.addEventListener("DOMContentLoaded", initializeKelvinLive);
-  </script>
+    <div class="topbar">
+      <div>
+        <small style="color:#8d94a8">Welcome</small>
+        <h2 id="userName">Kelvin User</h2>
+      </div>
+      <button class="back" onclick="show('profile')">👤</button>
+    </div>
+
+    <div class="card">
+      <small style="color:#8991a5">Kelvin Live</small>
+      <h2>What do you want to create?</h2>
+      <p>Connect, create and bring your authorized avatars to life.</p>
+    </div>
+
+    <div class="grid">
+      <div class="feature" onclick="show('callSetup')">
+        <div class="icon">📹</div>
+        <h3>Video Call</h3>
+        <p>Start or join a private call.</p>
+      </div>
+
+      <div class="feature" onclick="show('avatar')">
+        <div class="icon">🧑‍🎨</div>
+        <h3>Avatars</h3>
+        <p>Choose your authorized avatar.</p>
+      </div>
+
+      <div class="feature" onclick="show('generateVideo')">
+        <div class="icon">🎬</div>
+        <h3>Generate Video</h3>
+        <p>Create an AI video.</p>
+      </div>
+
+      <div class="feature" onclick="show('createImage')">
+        <div class="icon">✨</div>
+        <h3>Create Image</h3>
+        <p>Generate an image from a prompt.</p>
+      </div>
+    </div>
+
+    <div class="card" onclick="show('gallery')">
+      <h3>🗂️ My Gallery</h3>
+      <p>View your saved creations.</p>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="active" onclick="show('dashboard')">⌂<br>Home</button>
+    <button onclick="show('callSetup')">📹<br>Call</button>
+    <button onclick="show('gallery')">🗂️<br>Gallery</button>
+    <button onclick="show('profile')">👤<br>Profile</button>
+  </nav>
+</section>
+
+<!-- CALL SETUP -->
+<section id="callSetup" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="show('dashboard')">←</button>
+      <h3>Video Call</h3>
+      <span></span>
+    </div>
+
+    <div class="card center">
+      <h2>Private Call</h2>
+      <p>Create a private call or join someone else's call.</p>
+
+      <button class="btn" onclick="createCall()">Create Call</button>
+
+      <input id="joinCode" class="input" placeholder="Enter call code">
+
+      <button class="btn secondary" onclick="joinCall()">Join Call</button>
+    </div>
+
+    <div id="createdCall" class="card hidden center">
+      <small>Your call code</small>
+      <div id="callCode" class="call-code">KLV-000000</div>
+      <button class="btn secondary" onclick="copyCode()">Copy Call Code</button>
+      <button class="btn" onclick="show('callScreen')">Enter Call</button>
+    </div>
+  </div>
+</section>
+
+<!-- AVATAR -->
+<section id="avatar" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="show('dashboard')">←</button>
+      <h3>Avatar Selection</h3>
+      <span></span>
+    </div>
+
+    <p>Select an authorized avatar for your call.</p>
+
+    <div class="grid">
+      <div class="avatar selected" onclick="selectAvatar(this,'Avatar 1')">
+        <div class="avatar-circle">K</div>
+        <strong>Avatar 1</strong>
+      </div>
+
+      <div class="avatar" onclick="selectAvatar(this,'Avatar 2')">
+        <div class="avatar-circle">A</div>
+        <strong>Avatar 2</strong>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>➕ Add Avatar</h3>
+      <p>Add an image that you are authorized to use.</p>
+      <input type="file" accept="image/*" onchange="addAvatar(event)">
+    </div>
+
+    <button class="btn" onclick="show('callSetup')">Use Selected Avatar</button>
+  </div>
+</section>
+
+<!-- CALL -->
+<section id="callScreen" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="endCall()">←</button>
+      <strong>Kelvin Live Call</strong>
+      <span id="timer">00:00</span>
+    </div>
+
+    <div class="video-wrap">
+      <video id="localVideo" autoplay muted playsinline></video>
+      <div class="call-label" id="callStatus">Connecting...</div>
+    </div>
+
+    <div class="controls">
+      <button class="control" onclick="toggleMic()" id="micBtn">🎤</button>
+      <button class="control" onclick="switchCamera()">🔄</button>
+      <button class="control" onclick="toggleCamera()" id="cameraBtn">📷</button>
+      <button class="control end" onclick="endCall()">☎</button>
+    </div>
+  </div>
+</section>
+
+<!-- GENERATE VIDEO -->
+<section id="generateVideo" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="show('dashboard')">←</button>
+      <h3>Generate Video</h3>
+      <span></span>
+    </div>
+
+    <div class="card">
+      <h3>Choose an image</h3>
+      <input id="videoImage" type="file" accept="image/*" class="input">
+      <input id="videoPrompt" class="input" placeholder="Describe what the avatar should say/do">
+      <button class="btn" onclick="generateVideo()">Generate Video</button>
+    </div>
+
+    <div id="generatedVideo" class="card hidden center">
+      <div class="gallery-item">🎬</div>
+      <h3>Generated Video</h3>
+      <p>Your generated video will appear here.</p>
+      <button class="btn secondary" onclick="show('gallery')">Save to Gallery</button>
+    </div>
+  </div>
+</section>
+
+<!-- CREATE IMAGE -->
+<section id="createImage" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="show('dashboard')">←</button>
+      <h3>Create Image</h3>
+      <span></span>
+    </div>
+
+    <div class="card">
+      <h3>Describe your image</h3>
+      <textarea id="imagePrompt" class="input" rows="5"
+        placeholder="Describe the image you want to create..."></textarea>
+
+      <button class="btn" onclick="generateImage()">Create Image</button>
+    </div>
+
+    <div id="generatedImage" class="card hidden center">
+      <div class="gallery-item">✨</div>
+      <h3>Generated Image</h3>
+      <p>Your generated image will appear here.</p>
+      <button class="btn secondary" onclick="show('gallery')">Save to Gallery</button>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section id="gallery" class="screen hidden">
+  <div class="container" style="padding-bottom:100px">
+    <div class="topbar">
+      <button class="back" onclick="show('dashboard')">←</button>
+      <h3>My Gallery</h3>
+      <span></span>
+    </div>
+
+    <div class="gallery">
+      <div class="gallery-item">🎬</div>
+      <div class="gallery-item">✨</div>
+      <div class="gallery-item">🧑‍🎨</div>
+      <div class="gallery-item">🎥</div>
+    </div>
+  </div>
+</section>
+
+<!-- PROFILE -->
+<section id="profile" class="screen hidden">
+  <div class="container">
+    <div class="topbar">
+      <button class="back" onclick="show('dashboard')">←</button>
+      <h3>Profile</h3>
+      <span></span>
+    </div>
+
+    <div class="card center">
+      <div class="avatar-circle">K</div>
+      <h2 id="profileName">Kelvin User</h2>
+      <p id="profileEmail">user@example.com</p>
+    </div>
+
+    <div class="card">
+      <h3>⚙️ Settings</h3>
+      <p>Account and Kelvin Live preferences.</p>
+    </div>
+
+    <button class="btn secondary" onclick="logout()">Log Out</button>
+  </div>
+</section>
+
+<div id="toast" class="toast"></div>
+
+<script>
+let authMode="login";
+let selectedAvatar="Avatar 1";
+let stream=null;
+let currentFacing="user";
+let micOn=true;
+let cameraOn=true;
+let timerInterval=null;
+let seconds=0;
+
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));
+  const target=document.getElementById(id);
+  if(target) target.classList.remove("hidden");
+
+  if(id==="callScreen") startCamera();
+}
+
+function toggleAuth(){
+  authMode=authMode==="login"?"signup":"login";
+
+  document.getElementById("authTitle").textContent=
+    authMode==="login"?"Welcome back":"Create your account";
+
+  document.getElementById("authText").textContent=
+    authMode==="login"
+    ?"Sign in to continue to Kelvin Live."
+    :"Create an account to start using Kelvin Live.";
+
+  document.getElementById("nameInput")
+    .classList.toggle("hidden",authMode==="login");
+
+  document.getElementById("authToggle").textContent=
+    authMode==="login"?"Create an account":"Already have an account?";
+}
+
+function login(){
+  const name=document.getElementById("nameInput").value.trim();
+  const email=document.getElementById("emailInput").value.trim();
+
+  if(!email){
+    toast("Enter your email address");
+    return;
+  }
+
+  const userName=name || email.split("@")[0] || "Kelvin User";
+
+  document.getElementById("userName").textContent=userName;
+  document.getElementById("profileName").textContent=userName;
+  document.getElementById("profileEmail").textContent=email;
+
+  localStorage.setItem("kelvinUserName",userName);
+  localStorage.setItem("kelvinUserEmail",email);
+
+  show("dashboard");
+  toast("Welcome to Kelvin Live");
+}
+
+function logout(){
+  localStorage.removeItem("kelvinUserName");
+  localStorage.removeItem("kelvinUserEmail");
+  show("welcome");
+}
+
+function createCall(){
+  const code="KLV-"+Math.random().toString(36).substring(2,8).toUpperCase();
+
+  document.getElementById("callCode").textContent=code;
+  document.getElementById("createdCall").classList.remove("hidden");
+
+  localStorage.setItem("kelvinCallCode",code);
+}
+
+function joinCall(){
+  const code=document.getElementById("joinCode").value.trim();
+
+  if(!code){
+    toast("Enter a call code");
+    return;
+  }
+
+  localStorage.setItem("kelvinCallCode",code);
+  show("callScreen");
+}
+
+function copyCode(){
+  const code=document.getElementById("callCode").textContent;
+
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(code);
+  }
+
+  toast("Call code copied");
+}
+
+function selectAvatar(element,name){
+  document.querySelectorAll(".avatar")
+    .forEach(a=>a.classList.remove("selected"));
+
+  element.classList.add("selected");
+  selectedAvatar=name;
+  toast(name+" selected");
+}
+
+function addAvatar(event){
+  const file=event.target.files[0];
+
+  if(!file) return;
+
+  toast("Avatar image added");
+}
+
+async function startCamera(){
+  if(stream) return;
+
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:currentFacing},
+      audio:true
+    });
+
+    const video=document.getElementById("localVideo");
+    video.srcObject=stream;
+
+    document.getElementById("callStatus").textContent="Camera ready";
+
+    startTimer();
+
+  }catch(error){
+    document.getElementById("callStatus").textContent="Camera permission required";
+    toast("Allow camera and microphone access");
+  }
+}
+
+async function switchCamera(){
+  currentFacing=currentFacing==="user"?"environment":"user";
+
+  if(stream){
+    stream.getTracks().forEach(track=>track.stop());
+    stream=null;
+  }
+
+  await startCamera();
+}
+
+function toggleMic(){
+  if(!stream)return;
+
+  const audio=stream.getAudioTracks()[0];
+
+  if(audio){
+    micOn=!micOn;
+    audio.enabled=micOn;
+    document.getElementById("micBtn").textContent=micOn?"🎤":"🔇";
+  }
+}
+
+function toggleCamera(){
+  if(!stream)return;
+
+  const video=stream.getVideoTracks()[0];
+
+  if(video){
+    cameraOn=!cameraOn;
+    video.enabled=cameraOn;
+    document.getElementById("cameraBtn").textContent=
+      cameraOn?"📷":"🚫";
+  }
+}
+
+function startTimer(){
+  clearInterval(timerInterval);
+  seconds=0;
+
+  timerInterval=setInterval(()=>{
+    seconds++;
+
+    const min=String(Math.floor(seconds/60)).padStart(2,"0");
+    const sec=String(seconds%60).padStart(2,"0");
+
+    document.getElementById("timer").textContent=min+":"+sec;
+  },1000);
+}
+
+function endCall(){
+  if(stream){
+    stream.getTracks().forEach(track=>track.stop());
+    stream=null;
+  }
+
+  clearInterval(timerInterval);
+  document.getElementById("timer").textContent="00:00";
+
+  show("dashboard");
+  toast("Call ended");
+}
+
+function generateVideo(){
+  const file=document.getElementById("videoImage").files[0];
+  const prompt=document.getElementById("videoPrompt").value.trim();
+
+  if(!file){
+    toast("Choose an image first");
+    return;
+  }
+
+  if(!prompt){
+    toast("Describe the video");
+    return;
+  }
+
+  document.getElementById("generatedVideo")
+    .classList.remove("hidden");
+
+  toast("Video generation request created");
+}
+
+function generateImage(){
+  const prompt=document.getElementById("imagePrompt").value.trim();
+
+  if(!prompt){
+    toast("Enter an image description");
+    return;
+  }
+
+  document.getElementById("generatedImage")
+    .classList.remove("hidden");
+
+  toast("Image generation request created");
+}
+
+function toast(message){
+  const el=document.getElementById("toast");
+
+  el.textContent=message;
+  el.style.display="block";
+
+  clearTimeout(window.toastTimer);
+
+  window.toastTimer=setTimeout(()=>{
+    el.style.display="none";
+  },2500);
+}
+
+function loadUser(){
+  const name=localStorage.getItem("kelvinUserName");
+  const email=localStorage.getItem("kelvinUserEmail");
+
+  if(name){
+    document.getElementById("userName").textContent=name;
+    document.getElementById("profileName").textContent=name;
+  }
+
+  if(email){
+    document.getElementById("profileEmail").textContent=email;
+  }
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  loadUser();
+});
+</script>
 
 </body>
 </html>
