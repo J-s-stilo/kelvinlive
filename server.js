@@ -9,7 +9,7 @@
  * - AI generation job system
  * - Persistent JSON metadata + local media files for development
  * - OpenAI image generation
- * - Generic HTTP adapters for video / talking-avatar / face replacement / image edit
+ * - Puter.js frontend AI adapters for image/video; server persists generated media
  * - Backward-compatible /api/engines/* and /api/ai/* routes
  *
  * IMPORTANT:
@@ -456,7 +456,7 @@ const ENGINES = {
 
   video: {
     provider:
-      process.env.VIDEO_PROVIDER || 'custom',
+      process.env.VIDEO_PROVIDER || 'puter',
 
     url:
       process.env.VIDEO_API_URL ||
