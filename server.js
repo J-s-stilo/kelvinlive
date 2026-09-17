@@ -9,7 +9,7 @@
  * - AI generation job system
  * - Persistent JSON metadata + local media files for development
  * - OpenAI image generation
- * - Puter.js frontend AI adapters for image/video; server persists generated media
+ * - Generic HTTP adapters for video / talking-avatar / face replacement / image edit
  * - Backward-compatible /api/engines/* and /api/ai/* routes
  *
  * IMPORTANT:
@@ -456,7 +456,7 @@ const ENGINES = {
 
   video: {
     provider:
-      process.env.VIDEO_PROVIDER || 'puter',
+      process.env.VIDEO_PROVIDER || 'custom',
 
     url:
       process.env.VIDEO_API_URL ||
@@ -1519,6 +1519,13 @@ function addAvatar({
 ------------------------------------------------------- */
 
 const rooms = new Map();
+const liveSessions = new Map();
+
+function originFromRequest(req){
+  const proto=req.headers['x-forwarded-proto']||'http';
+  const host=req.headers.host||`localhost:${PORT}`;
+  return `${proto}://${host}`;
+}
 
 function createRoom() {
   let code;
@@ -1875,6 +1882,25 @@ async function handleRequest(req, res) {
 
       return;
     }
+
+    /* ---------------- LIVE STUDIO ---------------- */
+    if(req.method==='POST' && pathname==='/api/live/session'){
+      const user=getUserFromRequest(req); const sessionId=id('live');
+      const streamKey='KLV-'+crypto.randomBytes(18).toString('base64url');
+      const token=crypto.randomBytes(24).toString('base64url');
+      const session={id:sessionId,userId:user?.id||null,streamKey,token,mode:'real',live:false,createdAt:now()};
+      liveSessions.set(sessionId,session);
+      sendJSON(res,201,{ok:true,session:{...session,browserSourceUrl:`${originFromRequest(req)}/obs?token=${encodeURIComponent(token)}`}}); return;
+    }
+    if(req.method==='POST' && ['/api/live/start','/api/live/stop','/api/live/mode'].includes(pathname)){
+      const body=await readJSON(req); const session=liveSessions.get(body.sessionId); if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;}
+      if(pathname.endsWith('/start'))session.live=true;
+      if(pathname.endsWith('/stop'))session.live=false;
+      if(pathname.endsWith('/mode'))session.mode=body.mode==='ai'?'ai':'real';
+      sendJSON(res,200,{ok:true,session}); return;
+    }
+    const liveMatch=pathname.match(/^\/api\/live\/session\/([^/]+)$/);
+    if(req.method==='GET' && liveMatch){const session=[...liveSessions.values()].find(x=>x.token===liveMatch[1]||x.id===liveMatch[1]);if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;}sendJSON(res,200,{ok:true,session:{id:session.id,streamKey:session.streamKey,mode:session.mode,live:session.live}});return;}
 
     /* ---------------- CALL ---------------- */
 
@@ -2713,6 +2739,11 @@ async function handleRequest(req, res) {
       return;
     }
 
+    if(req.method==='GET' && pathname==='/obs'){
+      const token=new URL(req.url,originFromRequest(req)).searchParams.get('token')||'';
+      sendText(res,200,`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#000;width:100%;height:100%;overflow:hidden}video{width:100%;height:100%;object-fit:cover;background:#000}</style></head><body><video id="v" autoplay playsinline muted></video><script>const token=${JSON.stringify(token)};const ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');let pc;ws.onopen=()=>ws.send(JSON.stringify({type:'broadcast-join',streamKey:token,role:'viewer'}));ws.onmessage=async e=>{const m=JSON.parse(e.data);if(m.type==='broadcast-offer'){pc=new RTCPeerConnection();pc.ontrack=e=>v.srcObject=e.streams[0];pc.onicecandidate=e=>e.candidate&&ws.send(JSON.stringify({type:'broadcast-signal',streamKey:token,signal:{type:'ice-candidate',candidate:e.candidate}}));await pc.setRemoteDescription(m.offer);const a=await pc.createAnswer();await pc.setLocalDescription(a);ws.send(JSON.stringify({type:'broadcast-signal',streamKey:token,signal:{type:'answer',answer:a}}))}if(m.signal&&m.signal.type==='ice-candidate'&&pc)try{await pc.addIceCandidate(m.signal.candidate)}catch{}};</script></body></html>`);return;
+    }
+
     /* ---------------- STATIC APP ---------------- */
 
     let filePath;
@@ -2900,6 +2931,21 @@ wss.on(
             );
           }
 
+          return;
+        }
+
+        if(type==='broadcast-signal'){
+          const key=clean(message.streamKey,100);
+          for(const peer of wss.clients){
+            if(peer!==ws && peer.broadcastKey===key && peer.readyState===WebSocket.OPEN)peer.send(JSON.stringify({...message,from:ws.id}));
+          }
+          return;
+        }
+        if(type==='broadcast-join'){
+          ws.broadcastKey=clean(message.streamKey,100);
+          ws.broadcastRole=message.role==='viewer'?'viewer':'broadcaster';
+          ws.send(JSON.stringify({type:'broadcast-joined',role:ws.broadcastRole}));
+          if(ws.broadcastRole==='viewer'){ for(const peer of wss.clients){ if(peer!==ws && peer.broadcastKey===ws.broadcastKey && peer.broadcastRole==='broadcaster' && peer.readyState===WebSocket.OPEN){ peer.send(JSON.stringify({type:'broadcast-viewer-joined'})); break; } } }
           return;
         }
 
