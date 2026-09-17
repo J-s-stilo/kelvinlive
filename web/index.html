@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+https://youtu.be/vNxZGYvizzg?si=gd7ikKbckawvFwMx<!DOCTYPE html>
 <!-- Kelvin Live full application index. -->
 <html lang="en">
 <head>
@@ -615,6 +615,8 @@ padding-right:12px}
 }
 
 .studio-preview{position:relative;overflow:hidden;padding:0;aspect-ratio:16/9;background:#000}.studio-preview video{width:100%;height:100%;object-fit:cover;display:block}.studio-overlay{position:absolute;left:12px;right:12px;top:12px;display:flex;justify-content:space-between}.studio-overlay span{background:#090b12cc;border:1px solid #ffffff18;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800}.studio-live{color:#35d49a}.chat-line{padding:7px 0;border-bottom:1px solid #ffffff0d;font-size:13px}
+
+.status-pill{border:1px solid var(--line);background:#151b2b;border-radius:999px;padding:7px 11px;color:var(--muted);font-size:12px}.studio-live{color:#9ff0cf!important;border-color:#2d8b69!important}.hero-card{background:radial-gradient(circle at 90% 20%,#263a6b55,transparent 45%),linear-gradient(145deg,#111829,#0b0e18)}.eyebrow{color:#7b63ff;font-weight:900;letter-spacing:2px;font-size:12px}.studio-preview-card{overflow:hidden}.section-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.studio-preview{position:relative;aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:20px;overflow:hidden}.studio-preview video,.obs-camera{width:100%;height:100%;object-fit:cover;display:block}.preview-empty{position:absolute;left:20px;bottom:18px;border:1px solid #30374a;background:#080a11dd;border-radius:999px;padding:9px 15px;color:#dbe2f2}.mode-chip{border:1px solid #4b57a8;background:#171c35;color:#c7cbff;border-radius:999px;padding:7px 12px}.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.status-grid>div{background:#151c2c;border:1px solid var(--line);border-radius:14px;padding:12px}.status-grid span{display:block;color:var(--muted);font-size:12px}.status-grid strong{display:block;margin-top:7px;font-size:18px}.program-preview{aspect-ratio:16/9;border-radius:18px;background:radial-gradient(circle at 70% 20%,#123e55,transparent 50%),#070b16;display:flex;align-items:center;justify-content:center;color:#aab3c8;border:1px solid var(--line);overflow:hidden}.obs-camera{aspect-ratio:16/9;border-radius:18px;background:#000;border:1px solid var(--line);object-fit:cover}.feed-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);background:#151c2c;border-radius:15px;margin:10px 0}.feed-row .btn{width:auto;margin:0;padding:11px 20px}.steps{color:var(--muted);line-height:1.8}.chat-box{min-height:100px;max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:12px;background:#080b12}.chat-line{padding:7px 0;border-bottom:1px solid #1d2435}
 </style>
 </head>
 <body>
@@ -705,7 +707,7 @@ padding-right:12px}
 <p>Your camera and microphone drive the live capture pipeline. Your selected authorized media is used by the avatar/generation engines.</p>
 </div>
 <div class="grid">
-<div class="feature" onclick="show('studio');initStudio()">
+<div class="feature" onclick="show('studio')">
 <div class="icon">📡</div>
 <h3>Creator Studio</h3>
 <p>Go live, switch Real / AI output, manage your stream key and OBS browser source.</p>
@@ -753,7 +755,7 @@ padding-right:12px}
 </div>
 <nav class="nav">
 <button class="active" onclick="show('dashboard')">⌂<br>Home</button>
-<button onclick="show('callSetup')">📹<br>Call</button>
+<button onclick="show('studio')">📡<br>Studio</button><button onclick="show('callSetup')">📹<br>Call</button>
 <button onclick="show('gallery')">🗂️<br>Gallery</button>
 <button onclick="show('profile')">👤<br>Profile</button>
 </nav>
@@ -857,32 +859,30 @@ padding-right:12px}
 </section>
 <section id="studio" class="screen hidden">
 <div class="container">
-<div class="topbar"><button class="back" onclick="stopStudio();show('dashboard')">←</button><strong>Kelvin Creator Studio</strong><span id="studioLiveBadge" class="small">OFFLINE</span></div>
-<div class="studio-preview card">
-<video id="studioVideo" autoplay muted playsinline></video>
-<div class="studio-overlay"><span id="studioModeBadge">REAL CAMERA</span><span id="studioViewerBadge">0 viewers</span></div>
-</div>
-<div class="card">
-<div class="row"><button id="studioStartBtn" class="btn" onclick="startStudio()">Go Live</button><button class="btn secondary" onclick="switchStudioMode()">Switch AI</button></div>
-<div class="status-line"><span>Mode</span><strong id="studioModeText">Real Camera</strong></div>
-<div class="status-line"><span>Connection</span><strong id="studioConnection">Ready</strong></div>
-</div>
-<div class="card">
-<h3>AI character</h3><p>Choose an authorized image and a transformation prompt. The live engine slot is ready for the GPU/model adapter.</p>
-<select id="studioAvatar" class="input"></select>
-<textarea id="studioPrompt" class="input" rows="3" placeholder="Describe the authorized live character / visual style"></textarea>
-<label class="checkline"><input id="studioConsent" type="checkbox"> I confirm I have the right to use this image/likeness.</label>
-</div>
-<div class="card">
-<h3>Broadcast output</h3>
-<label class="field-label">Kelvin Stream Key</label><input id="studioStreamKey" class="input" readonly>
-<label class="field-label">Private Browser Source URL</label><input id="studioSourceUrl" class="input" readonly>
-<div class="row"><button class="btn secondary" onclick="copyStudioKey()">Copy Key</button><button class="btn secondary" onclick="copyStudioSource()">Copy Browser Source</button></div>
-<p class="small">Use the Browser Source URL in OBS. The live video stays in the browser/WebRTC path; an RTMP media gateway can be attached later without redesigning the studio.</p>
-</div>
-<div class="card"><h3>Live chat</h3><div id="studioChat" style="max-height:180px;overflow:auto"></div><div class="row"><input id="studioChatInput" class="input" placeholder="Say something to your viewers"><button class="btn secondary" onclick="sendStudioChat()">Send</button></div></div>
-</div>
-</section>
+<div class="topbar"><button class="back" onclick="stopStudio();show('dashboard')">←</button><div><small class="small">KELVIN LIVE</small><strong style="display:block;font-size:20px">Studio</strong></div><span id="studioLiveBadge" class="status-pill">● Offline</span></div>
+<div class="card hero-card"><div class="eyebrow">CREATOR STUDIO</div><h2>Go live. Get watched. Chat in real time.</h2><p>Broadcast from your camera, switch between Natural and AI Look, and send the program output to Kelvin viewers or a private Browser Source.</p></div>
+<div class="card studio-preview-card"><div class="section-head"><h3>Camera preview</h3><span id="studioPreviewState" class="status-pill">Preview</span></div><div class="studio-preview"><video id="studioVideo" autoplay muted playsinline></video><div id="studioPreviewEmpty" class="preview-empty">Your camera</div></div>
+<div class="row"><button id="studioStartBtn" class="btn" onclick="startStudio()">Go Live</button><button class="btn secondary" onclick="studioCameraToggle()">Camera</button></div><button class="btn secondary" onclick="studioMicToggle()">Mic</button>
+<div class="row"><select id="studioCameraSelect" class="input" onchange="changeStudioCamera(this.value)"><option value="">camera 1, facing front</option></select><select id="studioResolution" class="input" onchange="setStudioResolution(this.value)"><option>720p</option><option selected>1080p</option></select></div>
+<button class="btn secondary" onclick="switchStudioMode()">Switch look →</button></div>
+<div class="card"><div class="section-head"><h3>Audience</h3></div><p>When you go live, your stream can appear in Kelvin Feed. Viewers can watch, chat and react in real time.</p><div class="status-line"><span>Viewers</span><strong id="studioViewerCount">0</strong></div><button class="btn secondary" onclick="show('feed');loadLiveFeed()">Browse live creators</button></div>
+<div class="card"><h3>Stream status</h3><div class="status-grid"><div><span>Status</span><strong id="studioStatusText">Offline</strong></div><div><span>Elapsed</span><strong id="studioElapsed">0:00</strong></div><div><span>Viewers</span><strong id="studioViewers">—</strong></div></div><button class="btn" onclick="startStudio()">Go Live</button></div>
+<div class="card"><div class="section-head"><h3>AI Look</h3><span id="studioModeText" class="mode-chip">Natural</span></div><p id="studioModeDescription">Real camera — no AI credits used.</p><button class="btn secondary" onclick="switchStudioMode()">Switch look →</button></div>
+<div class="card"><h3>AI character</h3><p>Choose an authorized reference image. The realtime GPU transformer will use this selection when AI mode is active.</p><select id="studioAvatar" class="input"></select><input id="studioReferenceFile" type="file" accept="image/*" class="input" onchange="selectStudioReference(event)"><textarea id="studioPrompt" class="input" rows="3" placeholder="Optional AI look instructions"></textarea><label class="checkline"><input id="studioConsent" type="checkbox"> I confirm I have the right to use this image/likeness.</label></div>
+<div class="card"><h3>AI settings</h3><select id="studioAiResolution" class="input"><option>720p</option><option selected>1080p</option></select><select id="studioFps" class="input"><option selected>30 FPS</option><option>24 FPS</option><option>60 FPS</option></select><p class="small">Realtime AI streaming will consume credits only while AI output is generating. The GPU/model adapter is connected separately.</p></div>
+<div class="card"><h3>OBS Browser Source</h3><p>Add this private URL as a Browser Source in OBS. The preview appears before you go live; when streaming starts, Kelvin switches the source to the live program output.</p><input id="studioSourceUrl" class="input" readonly placeholder="Creating private URL…"><div class="row"><button class="btn secondary" onclick="copyStudioSource()">Copy URL</button><button class="btn secondary" onclick="openStudioSource()">Open preview</button></div><button class="btn secondary" onclick="regenerateStudioSource()">Regenerate URL</button><div id="studioObsStatus" class="notice">🟡 Idle — Start Streaming to send output to OBS</div><p class="small">Keep this URL private. Regenerating invalidates the previous link.</p></div>
+<div class="card"><h3>Stream key</h3><input id="studioStreamKey" class="input" readonly><button class="btn secondary" onclick="copyStudioKey()">Copy stream key</button></div>
+<div class="card"><h3>Live chat</h3><div id="studioChat" class="chat-box"><div class="small">Go live to open chat.</div></div><div class="row"><input id="studioChatInput" class="input" placeholder="Say something to viewers"><button class="btn secondary" onclick="sendStudioChat()">Send</button></div></div>
+</div></section>
+<section id="aiobs" class="screen hidden">
+<div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><strong>AI & Output</strong><span class="status-pill">Kelvin</span></div>
+<div class="card"><div class="section-head"><h2>AI program output</h2><span id="aiobsLive" class="status-pill">● Offline</span></div><div id="aiProgramPreview" class="program-preview"><span>Start streaming to see output</span></div><button class="btn" onclick="startStudioFromAiObs()">Start Streaming</button><select id="aiobsResolution" class="input"><option>720p</option><option selected>1080p</option></select></div>
+<div class="card"><h3>Camera input</h3><video id="aiobsCamera" class="obs-camera" autoplay muted playsinline></video><div class="row"><button class="btn secondary" onclick="studioCameraToggle()">Camera</button><button class="btn secondary" onclick="studioMicToggle()">Mic</button></div></div>
+<div class="card"><h3>Choose your look</h3><div id="aiobsAvatarChoices" class="avatar-grid"></div><button class="btn secondary" onclick="document.getElementById('studioReferenceFile').click()">Upload reference image</button></div>
+<div class="card"><h3>AI settings</h3><select class="input"><option>1080p</option></select><select class="input"><option>30 FPS</option></select><p>Realtime AI streaming. The Kelvin GPU transformer will provide the generated frames when connected.</p></div>
+<div class="card"><h3>OBS Browser Source</h3><p>Add the private Kelvin URL as a Browser Source in OBS at 1280×720 or 1920×1080.</p><input id="aiobsSourceUrl" class="input" readonly><button class="btn secondary" onclick="copyAiObsSource()">Copy URL</button><button class="btn secondary" onclick="openStudioSource()">Open preview</button><button class="btn secondary" onclick="regenerateStudioSource()">Regenerate URL</button><div id="aiobsStatus" class="notice">🟡 Idle — Start Streaming to send output to OBS</div></div>
+<div class="card"><h3>OBS setup steps</h3><ol class="steps"><li>Open OBS and add a <b>Browser Source</b>.</li><li>Paste your private Kelvin URL.</li><li>Keep Kelvin Studio open and start streaming.</li><li>OBS receives the Kelvin program output through the browser source.</li></ol></div></div></section>
+<section id="feed" class="screen hidden"><div class="container"><div class="topbar"><button class="back" onclick="show('dashboard')">←</button><strong>Live Feed</strong><button class="text-button" onclick="loadLiveFeed()">Refresh</button></div><div class="card"><h2>Live now</h2><p>Watch creators streaming on Kelvin right now.</p><div id="liveFeedList"></div></div></div></section>
 <section id="callScreen" class="screen hidden">
 <div class="container">
 <div class="topbar">
@@ -1166,7 +1166,7 @@ padding-right:12px}
 <div id="toast" class="toast">
 </div>
 <script>
-const state={authMode:'login',selectedAvatar:localStorage.kelvinSelectedAvatar||'default-1',avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:localStorage.kelvinFacing||'user',seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],recordStream:null,videoMode:'image-to-video',lastGenerated:null,lastReplacement:null,avatarPreview:true,faceLoop:null,recordingSource:'camera',authToken:localStorage.kelvinAuthToken||'',serverGallery:[],serverAvatarSession:null,voices:[],voiceRecorder:null,voiceChunks:[],recordedVoiceDataUrl:null};
+const state={authMode:'login',selectedAvatar:localStorage.kelvinSelectedAvatar||'default-1',avatars:[],gallery:[],stream:null,peer:null,ws:null,room:null,role:null,micOn:true,cameraOn:true,facing:localStorage.kelvinFacing||'user',seconds:0,timer:null,callConnected:false,recording:null,recordChunks:[],recordStream:null,videoMode:'image-to-video',lastGenerated:null,lastReplacement:null,avatarPreview:true,faceLoop:null,recordingSource:'camera',authToken:localStorage.kelvinAuthToken||'',serverGallery:[],serverAvatarSession:null,voices:[],voiceRecorder:null,voiceChunks:[],recordedVoiceDataUrl:null,studioMode:'real',studioStream:null,studioSession:null,studioWs:null,studioPeers:new Map(),studioSourceStream:null,studioLive:false,studioViewers:0,studioResolution:'1080p',studioFps:30,studioAvatarId:null,studioPrompt:''};
 const rtcConfig={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const $=id=>document.getElementById(id);
 function toast(m){const e=$('toast');e.textContent=m;e.style.display='block';clearTimeout(window._toast);window._toast=setTimeout(()=>e.style.display='none',3200)}
@@ -1182,7 +1182,7 @@ function show(id){
   if(id==='record')prepareRecordPreview();
   if(id==='gallery')renderGallery();
   if(id==='avatar')renderAvatars();
-  if(id==='dashboard')renderHomeStatus();
+  if(id==='dashboard')renderHomeStatus(); if(id==='studio')initStudio(); if(id==='aiobs'){initStudio().then(syncAiObsUI)} if(id==='feed')loadLiveFeed();
   if(id==='profile')checkStatus();
   return true
 }
@@ -1325,45 +1325,54 @@ async function saveUploadedAvatar(){
 function wsUrl(){return(location.protocol==='https:'?'wss':'ws')+'://'+location.host}
 async function initStudio(){
   const sel=$('studioAvatar'); if(!sel)return;
-  renderAvatars();
+  state.avatars=[...defaultAvatars(),...getAvatars()];
   sel.innerHTML=state.avatars.map(a=>`<option value="${escAttr(a.id)}">${esc(a.name)}</option>`).join('');
-  sel.value=state.selectedAvatar;
-  try{const d=await apiJSON('/api/live/session',{},{method:'POST'});state.studioSession=d.session;$('studioStreamKey').value=d.session.streamKey;$('studioSourceUrl').value=d.session.browserSourceUrl}catch(e){$('studioConnection').textContent='Server session unavailable'}
+  sel.value=state.selectedAvatar; state.studioAvatarId=state.selectedAvatar;
+  try{const d=await apiJSON('/api/live/session',{},{method:'POST'});state.studioSession=d.session;setStudioSessionUI(d.session);await loadStudioDevices();syncAiObsUI();}catch(e){$('studioConnection')&&($('studioConnection').textContent='Server session unavailable');toast(e.message||'Studio session unavailable')}
 }
+function setStudioSessionUI(session){if(!session)return;$('studioStreamKey').value=session.streamKey;$('studioSourceUrl').value=session.browserSourceUrl;if($('aiobsSourceUrl'))$('aiobsSourceUrl').value=session.browserSourceUrl}
+async function loadStudioDevices(){const sel=$('studioCameraSelect');if(!sel||!navigator.mediaDevices?.enumerateDevices)return;try{const devices=await navigator.mediaDevices.enumerateDevices();const cams=devices.filter(d=>d.kind==='videoinput');sel.innerHTML=cams.map((d,i)=>`<option value="${escAttr(d.deviceId)}">${esc(d.label||`camera ${i+1}`)}</option>`).join('')||'<option value="">camera 1, facing front</option>'}catch{}}
 async function startStudio(){
   try{
     if(!state.studioSession)await initStudio();
-    if(!state.studioStream){state.studioStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('studioVideo').srcObject=state.studioStream}
+    if(!state.studioSession)throw Error('Studio session is unavailable');
+    if(state.studioMode==='ai' && !$('studioConsent').checked && $('studioAvatar').value!=='default-1')return toast('Confirm you are authorized to use the selected reference image');
+    if(!state.studioStream){state.studioStream=await navigator.mediaDevices.getUserMedia({video:{deviceId:$('studioCameraSelect')?.value?{exact:$('studioCameraSelect').value}:undefined,facingMode:state.facing,width:{ideal:state.studioResolution==='1080p'?1920:1280},height:{ideal:state.studioResolution==='1080p'?1080:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('studioVideo').srcObject=state.studioStream;$('studioPreviewEmpty').style.display='none';if($('aiobsCamera'))$('aiobsCamera').srcObject=state.studioStream}
     if(!state.studioWs||state.studioWs.readyState!==WebSocket.OPEN){
       state.studioWs=new WebSocket(wsUrl());
       state.studioWs.onopen=()=>state.studioWs.send(JSON.stringify({type:'broadcast-join',streamKey:state.studioSession.token,role:'broadcaster'}));
       state.studioWs.onmessage=async ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}
-        if(m.type==='broadcast-viewer-joined'){
-          const pc=new RTCPeerConnection(rtcConfig); state.studioPeers.set('viewer',pc);
-          state.studioStream.getTracks().forEach(t=>pc.addTrack(t,state.studioStream));
-          pc.onicecandidate=e=>e.candidate&&state.studioWs.send(JSON.stringify({type:'broadcast-signal',streamKey:state.studioSession.token,signal:{type:'ice-candidate',candidate:e.candidate}}));
-          const offer=await pc.createOffer();await pc.setLocalDescription(offer);
-          state.studioWs.send(JSON.stringify({type:'broadcast-signal',streamKey:state.studioSession.token,signal:{type:'offer',offer}}));
-        }
-        if(m.signal?.type==='answer'){const pc=state.studioPeers.get('viewer');if(pc)await pc.setRemoteDescription(m.signal.answer)}
-        if(m.signal?.type==='ice-candidate'){const pc=state.studioPeers.get('viewer');if(pc)try{await pc.addIceCandidate(m.signal.candidate)}catch{}}
+        if(m.type==='broadcast-viewer-joined'){await createStudioPeer(m.viewerId)}
+        if(m.type==='broadcast-signal'&&m.signal){const pc=state.studioPeers.get(m.from||m.viewerId);if(!pc)return;if(m.signal.type==='answer')await pc.setRemoteDescription(m.signal.answer);if(m.signal.type==='ice-candidate'&&m.signal.candidate)try{await pc.addIceCandidate(m.signal.candidate)}catch{}}
+        if(m.type==='broadcast-viewer-left'){const pc=state.studioPeers.get(m.viewerId);if(pc)pc.close();state.studioPeers.delete(m.viewerId);updateStudioViewers(m.viewers||0)}
+        if(m.type==='broadcast-viewers')updateStudioViewers(m.count||0);
       };
     }
-    await apiJSON('/api/live/start',{sessionId:state.studioSession.id,mode:state.studioMode});
-    $('studioLiveBadge').textContent='LIVE';$('studioLiveBadge').classList.add('studio-live');$('studioStartBtn').textContent='Live';$('studioConnection').textContent='Broadcasting';
+    await apiJSON('/api/live/start',{sessionId:state.studioSession.id,mode:state.studioMode,resolution:state.studioResolution,fps:state.studioFps,avatarId:state.studioAvatarId,prompt:$('studioPrompt')?.value||''});
+    state.studioLive=true; $('studioLiveBadge').textContent='● Live';$('studioLiveBadge').classList.add('studio-live');$('studioStartBtn').textContent='Live';$('studioStatusText').textContent='Live';$('studioPreviewState').textContent='Live';$('studioConnection')&&($('studioConnection').textContent='Broadcasting');$('studioObsStatus').textContent='🟢 Live — Browser Source is receiving output';if($('aiobsStatus'))$('aiobsStatus').textContent='🟢 Live — Browser Source is receiving output';if($('aiobsLive'))$('aiobsLive').textContent='● Live';startStudioClock();
   }catch(e){toast(e.message||'Unable to start live studio')}
 }
-async function stopStudio(){
-  if(state.studioSession){try{await apiJSON('/api/live/stop',{sessionId:state.studioSession.id})}catch{}}
-  for(const pc of state.studioPeers.values())try{pc.close()}catch{} state.studioPeers.clear(); if(state.studioWs){try{state.studioWs.close()}catch{} state.studioWs=null}
-  if(state.studioStream){state.studioStream.getTracks().forEach(t=>t.stop());state.studioStream=null}
-  if($('studioVideo'))$('studioVideo').srcObject=null;
-  if($('studioLiveBadge')){$('studioLiveBadge').textContent='OFFLINE';$('studioLiveBadge').classList.remove('studio-live')}
-}
-function switchStudioMode(){state.studioMode=state.studioMode==='real'?'ai':'real';$('studioModeText').textContent=state.studioMode==='real'?'Real Camera':'AI Mode';$('studioModeBadge').textContent=state.studioMode==='real'?'REAL CAMERA':'AI MODE';if(state.studioSession)apiJSON('/api/live/mode',{sessionId:state.studioSession.id,mode:state.studioMode}).catch(()=>{});toast(state.studioMode==='ai'?'AI mode selected — GPU transformer will provide the live frames.':'Real camera selected')}
+async function createStudioPeer(viewerId){const pc=new RTCPeerConnection(rtcConfig);state.studioPeers.set(viewerId,pc);const media=getStudioOutputStream();if(media)media.getTracks().forEach(t=>pc.addTrack(t,media));pc.onicecandidate=e=>e.candidate&&studioBroadcastSignal({to:viewerId,signal:{type:'ice-candidate',candidate:e.candidate}});pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))state.studioPeers.delete(viewerId)};const offer=await pc.createOffer();await pc.setLocalDescription(offer);studioBroadcastSignal({to:viewerId,signal:{type:'offer',offer}})}
+function getStudioOutputStream(){return state.studioStream}
+function updateStudioViewers(n){state.studioViewers=Number(n)||0;['studioViewerCount','studioViewers','studioViewerBadge'].forEach(id=>{if($(id))$(id).textContent=id==='studioViewerBadge'?`${state.studioViewers} viewers`:String(state.studioViewers)});}
+function startStudioClock(){clearInterval(state.studioClock);state.studioClock=setInterval(()=>{if(!state.studioLive)return;state.studioElapsed=(state.studioElapsed||0)+1;const m=Math.floor(state.studioElapsed/60),s=state.studioElapsed%60;if($('studioElapsed'))$('studioElapsed').textContent=`${m}:${String(s).padStart(2,'0')}`},1000)}
+async function stopStudio(){if(state.studioSession){try{await apiJSON('/api/live/stop',{sessionId:state.studioSession.id})}catch{}}for(const pc of state.studioPeers.values())try{pc.close()}catch{}state.studioPeers.clear();if(state.studioWs){try{state.studioWs.close()}catch{}state.studioWs=null}if(state.studioStream){state.studioStream.getTracks().forEach(t=>t.stop());state.studioStream=null}state.studioLive=false;clearInterval(state.studioClock);if($('studioVideo'))$('studioVideo').srcObject=null;if($('aiobsCamera'))$('aiobsCamera').srcObject=null;if($('studioLiveBadge')){$('studioLiveBadge').textContent='● Offline';$('studioLiveBadge').classList.remove('studio-live')}if($('studioStartBtn'))$('studioStartBtn').textContent='Go Live';if($('studioStatusText'))$('studioStatusText').textContent='Offline'}
+async function switchStudioMode(){state.studioMode=state.studioMode==='real'?'ai':'real';if($('studioModeText'))$('studioModeText').textContent=state.studioMode==='real'?'Natural':'AI Look';if($('studioModeDescription'))$('studioModeDescription').textContent=state.studioMode==='real'?'Real camera — no AI credits used.':'Realtime AI look — GPU transformer will generate the output when connected.';if($('studioModeBadge'))$('studioModeBadge').textContent=state.studioMode==='real'?'REAL CAMERA':'AI LOOK';if(state.studioSession)apiJSON('/api/live/mode',{sessionId:state.studioSession.id,mode:state.studioMode}).catch(()=>{});syncAiObsUI();toast(state.studioMode==='ai'?'AI Look selected':'Natural camera selected')}
+function studioCameraToggle(){const t=state.studioStream?.getVideoTracks()[0];if(t){t.enabled=!t.enabled;toast(t.enabled?'Camera on':'Camera off')}else startStudio()}
+function studioMicToggle(){const t=state.studioStream?.getAudioTracks()[0];if(t){t.enabled=!t.enabled;toast(t.enabled?'Mic on':'Mic muted')}else startStudio()}
+async function changeStudioCamera(deviceId){if(!deviceId)return;if(state.studioStream){state.studioStream.getTracks().forEach(t=>t.stop());state.studioStream=null}try{state.studioStream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId},width:{ideal:1920},height:{ideal:1080}},audio:true});$('studioVideo').srcObject=state.studioStream;if($('aiobsCamera'))$('aiobsCamera').srcObject=state.studioStream}catch(e){toast(e.message||'Camera unavailable')}}
+function setStudioResolution(v){state.studioResolution=v;toast('Resolution set to '+v)}
+function selectStudioReference(e){const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{state.studioReferenceDataUrl=r.result;toast('Reference image selected. Confirm authorization before AI streaming.');};r.readAsDataURL(f)}
 function copyStudioKey(){navigator.clipboard?.writeText($('studioStreamKey').value);toast('Stream key copied')}
 function copyStudioSource(){navigator.clipboard?.writeText($('studioSourceUrl').value);toast('Browser Source URL copied')}
-function sendStudioChat(){const input=$('studioChatInput');const text=input.value.trim();if(!text)return;const row=document.createElement('div');row.className='chat-line';row.textContent='You: '+text;$('studioChat').appendChild(row);input.value='';}
+function copyAiObsSource(){navigator.clipboard?.writeText($('aiobsSourceUrl').value);toast('Browser Source URL copied')}
+function openStudioSource(){const u=$('studioSourceUrl')?.value;if(u)window.open(u,'_blank')}
+async function regenerateStudioSource(){try{const d=await apiJSON('/api/live/regenerate',{sessionId:state.studioSession?.id},{method:'POST'});state.studioSession=d.session;setStudioSessionUI(d.session);toast('Private Browser Source URL regenerated')}catch(e){toast(e.message||'Could not regenerate URL')}}
+function syncAiObsUI(){if($('aiobsSourceUrl')&&state.studioSession)$('aiobsSourceUrl').value=state.studioSession.browserSourceUrl;if($('aiobsCamera')&&state.studioStream)$('aiobsCamera').srcObject=state.studioStream}
+async function startStudioFromAiObs(){show('studio');await initStudio();state.studioMode='ai';await startStudio()}
+async function loadLiveFeed(){const box=$('liveFeedList');if(!box)return;box.innerHTML='<p>Loading live creators…</p>';try{const d=await apiJSON('/api/live/feed',{},{method:'GET'});box.innerHTML=d.items?.length?d.items.map(x=>`<div class="feed-row"><div><strong>${esc(x.creatorName||'Kelvin creator')}</strong><div class="small">🔴 ${x.viewers||0} watching</div></div><button class="btn secondary" onclick="watchLive('${escAttr(x.token)}')">Watch</button></div>`).join(''):'<p>No creators are live right now.</p>'}catch(e){box.innerHTML='<p>Live feed unavailable.</p>'}}
+function watchLive(token){window.open('/obs?token='+encodeURIComponent(token),'_blank')}
+function sendStudioChat(){const input=$('studioChatInput');const text=input?.value.trim();if(!text)return;const row=document.createElement('div');row.className='chat-line';row.textContent='You: '+text;$('studioChat').appendChild(row);input.value='';}
 function studioBroadcastSignal(m){if(state.studioSession&&state.studioWs?.readyState===WebSocket.OPEN)state.studioWs.send(JSON.stringify({type:'broadcast-signal',streamKey:state.studioSession.token,...m}))}
 
 async function startCallCamera(){if(state.stream)return;try{state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('localVideo').srcObject=state.stream;$('callCamState').textContent='Ready';$('callMicState').textContent='Ready';$('callStatus').textContent='Camera ready — connecting…';$('callAvatarState').textContent=avatarById().name;startTimer();await startAvatarRenderer();await startAvatarSession();await connectSignaling()}catch(e){$('callStatus').textContent='Camera/microphone permission required';toast(e.message||'Allow camera and microphone')}}
