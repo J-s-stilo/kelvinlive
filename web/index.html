@@ -613,8 +613,9 @@ align-items:flex-start}
 padding-left:12px;
 padding-right:12px}
 }
+
+.studio-preview{position:relative;overflow:hidden;padding:0;aspect-ratio:16/9;background:#000}.studio-preview video{width:100%;height:100%;object-fit:cover;display:block}.studio-overlay{position:absolute;left:12px;right:12px;top:12px;display:flex;justify-content:space-between}.studio-overlay span{background:#090b12cc;border:1px solid #ffffff18;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800}.studio-live{color:#35d49a}.chat-line{padding:7px 0;border-bottom:1px solid #ffffff0d;font-size:13px}
 </style>
-<script src="https://js.puter.com/v2/"></script>
 </head>
 <body>
 <section id="welcome" class="screen">
@@ -704,6 +705,11 @@ padding-right:12px}
 <p>Your camera and microphone drive the live capture pipeline. Your selected authorized media is used by the avatar/generation engines.</p>
 </div>
 <div class="grid">
+<div class="feature" onclick="show('studio');initStudio()">
+<div class="icon">📡</div>
+<h3>Creator Studio</h3>
+<p>Go live, switch Real / AI output, manage your stream key and OBS browser source.</p>
+</div>
 <div class="feature" onclick="show('callSetup')">
 <div class="icon">📹</div>
 <h3>Live Call</h3>
@@ -849,6 +855,34 @@ padding-right:12px}
 <button class="btn" onclick="show('callSetup')">Use Selected Avatar</button>
 </div>
 </section>
+<section id="studio" class="screen hidden">
+<div class="container">
+<div class="topbar"><button class="back" onclick="stopStudio();show('dashboard')">←</button><strong>Kelvin Creator Studio</strong><span id="studioLiveBadge" class="small">OFFLINE</span></div>
+<div class="studio-preview card">
+<video id="studioVideo" autoplay muted playsinline></video>
+<div class="studio-overlay"><span id="studioModeBadge">REAL CAMERA</span><span id="studioViewerBadge">0 viewers</span></div>
+</div>
+<div class="card">
+<div class="row"><button id="studioStartBtn" class="btn" onclick="startStudio()">Go Live</button><button class="btn secondary" onclick="switchStudioMode()">Switch AI</button></div>
+<div class="status-line"><span>Mode</span><strong id="studioModeText">Real Camera</strong></div>
+<div class="status-line"><span>Connection</span><strong id="studioConnection">Ready</strong></div>
+</div>
+<div class="card">
+<h3>AI character</h3><p>Choose an authorized image and a transformation prompt. The live engine slot is ready for the GPU/model adapter.</p>
+<select id="studioAvatar" class="input"></select>
+<textarea id="studioPrompt" class="input" rows="3" placeholder="Describe the authorized live character / visual style"></textarea>
+<label class="checkline"><input id="studioConsent" type="checkbox"> I confirm I have the right to use this image/likeness.</label>
+</div>
+<div class="card">
+<h3>Broadcast output</h3>
+<label class="field-label">Kelvin Stream Key</label><input id="studioStreamKey" class="input" readonly>
+<label class="field-label">Private Browser Source URL</label><input id="studioSourceUrl" class="input" readonly>
+<div class="row"><button class="btn secondary" onclick="copyStudioKey()">Copy Key</button><button class="btn secondary" onclick="copyStudioSource()">Copy Browser Source</button></div>
+<p class="small">Use the Browser Source URL in OBS. The live video stays in the browser/WebRTC path; an RTMP media gateway can be attached later without redesigning the studio.</p>
+</div>
+<div class="card"><h3>Live chat</h3><div id="studioChat" style="max-height:180px;overflow:auto"></div><div class="row"><input id="studioChatInput" class="input" placeholder="Say something to your viewers"><button class="btn secondary" onclick="sendStudioChat()">Send</button></div></div>
+</div>
+</section>
 <section id="callScreen" class="screen hidden">
 <div class="container">
 <div class="topbar">
@@ -964,17 +998,17 @@ padding-right:12px}
 <input id="videoAudio" type="file" accept="audio/*" class="input">
 <div class="card" style="margin-top:12px;padding:14px">
   <strong>Kelvin Voice</strong>
-  <p class="small">Use a built-in voice, record your voice, or save a voice recording for later use.</p>
+  <p class="small">Use a built-in voice or create your own authorized voice clone.</p>
   <select id="voiceSelect" class="input"><option value="">Loading voices…</option></select>
   <div class="row" style="margin-top:8px">
     <button class="btn secondary" type="button" onclick="startVoiceRecording()" id="voiceRecordStart">Record My Voice</button>
     <button class="btn secondary" type="button" onclick="stopVoiceRecording()" id="voiceRecordStop" disabled>Stop</button>
   </div>
   <input id="voiceName" class="input" placeholder="Voice name" style="margin-top:8px">
-  <button class="btn secondary" type="button" onclick="cloneRecordedVoice()" id="voiceCloneBtn" disabled>Save My Voice Recording</button>
+  <button class="btn secondary" type="button" onclick="cloneRecordedVoice()" id="voiceCloneBtn" disabled>Save My Voice</button>
   <div id="voiceStatus" class="small" style="margin-top:8px">Voice system ready.</div>
 </div>
-<div class="row" style="margin-top:8px"><button class="btn" onclick="generateVideo()">Generate Video</button><button class="btn secondary" type="button" onclick="testPuterVideo()">Free Video Test</button></div>
+<button class="btn" onclick="generateVideo()">Generate Video</button>
 <div id="videoEngine" class="engine hidden">
 <div class="engine-head">
 <strong>Video Engine</strong>
@@ -1150,7 +1184,6 @@ function show(id){
   if(id==='avatar')renderAvatars();
   if(id==='dashboard')renderHomeStatus();
   if(id==='profile')checkStatus();
-  if(id==='generateVideo')loadVoices();
   return true
 }
 function getStarted(){
@@ -1290,12 +1323,55 @@ async function saveUploadedAvatar(){
   };reader.readAsDataURL(file)
 }
 function wsUrl(){return(location.protocol==='https:'?'wss':'ws')+'://'+location.host}
+async function initStudio(){
+  const sel=$('studioAvatar'); if(!sel)return;
+  renderAvatars();
+  sel.innerHTML=state.avatars.map(a=>`<option value="${escAttr(a.id)}">${esc(a.name)}</option>`).join('');
+  sel.value=state.selectedAvatar;
+  try{const d=await apiJSON('/api/live/session',{},{method:'POST'});state.studioSession=d.session;$('studioStreamKey').value=d.session.streamKey;$('studioSourceUrl').value=d.session.browserSourceUrl}catch(e){$('studioConnection').textContent='Server session unavailable'}
+}
+async function startStudio(){
+  try{
+    if(!state.studioSession)await initStudio();
+    if(!state.studioStream){state.studioStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('studioVideo').srcObject=state.studioStream}
+    if(!state.studioWs||state.studioWs.readyState!==WebSocket.OPEN){
+      state.studioWs=new WebSocket(wsUrl());
+      state.studioWs.onopen=()=>state.studioWs.send(JSON.stringify({type:'broadcast-join',streamKey:state.studioSession.token,role:'broadcaster'}));
+      state.studioWs.onmessage=async ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}
+        if(m.type==='broadcast-viewer-joined'){
+          const pc=new RTCPeerConnection(rtcConfig); state.studioPeers.set('viewer',pc);
+          state.studioStream.getTracks().forEach(t=>pc.addTrack(t,state.studioStream));
+          pc.onicecandidate=e=>e.candidate&&state.studioWs.send(JSON.stringify({type:'broadcast-signal',streamKey:state.studioSession.token,signal:{type:'ice-candidate',candidate:e.candidate}}));
+          const offer=await pc.createOffer();await pc.setLocalDescription(offer);
+          state.studioWs.send(JSON.stringify({type:'broadcast-signal',streamKey:state.studioSession.token,signal:{type:'offer',offer}}));
+        }
+        if(m.signal?.type==='answer'){const pc=state.studioPeers.get('viewer');if(pc)await pc.setRemoteDescription(m.signal.answer)}
+        if(m.signal?.type==='ice-candidate'){const pc=state.studioPeers.get('viewer');if(pc)try{await pc.addIceCandidate(m.signal.candidate)}catch{}}
+      };
+    }
+    await apiJSON('/api/live/start',{sessionId:state.studioSession.id,mode:state.studioMode});
+    $('studioLiveBadge').textContent='LIVE';$('studioLiveBadge').classList.add('studio-live');$('studioStartBtn').textContent='Live';$('studioConnection').textContent='Broadcasting';
+  }catch(e){toast(e.message||'Unable to start live studio')}
+}
+async function stopStudio(){
+  if(state.studioSession){try{await apiJSON('/api/live/stop',{sessionId:state.studioSession.id})}catch{}}
+  for(const pc of state.studioPeers.values())try{pc.close()}catch{} state.studioPeers.clear(); if(state.studioWs){try{state.studioWs.close()}catch{} state.studioWs=null}
+  if(state.studioStream){state.studioStream.getTracks().forEach(t=>t.stop());state.studioStream=null}
+  if($('studioVideo'))$('studioVideo').srcObject=null;
+  if($('studioLiveBadge')){$('studioLiveBadge').textContent='OFFLINE';$('studioLiveBadge').classList.remove('studio-live')}
+}
+function switchStudioMode(){state.studioMode=state.studioMode==='real'?'ai':'real';$('studioModeText').textContent=state.studioMode==='real'?'Real Camera':'AI Mode';$('studioModeBadge').textContent=state.studioMode==='real'?'REAL CAMERA':'AI MODE';if(state.studioSession)apiJSON('/api/live/mode',{sessionId:state.studioSession.id,mode:state.studioMode}).catch(()=>{});toast(state.studioMode==='ai'?'AI mode selected — GPU transformer will provide the live frames.':'Real camera selected')}
+function copyStudioKey(){navigator.clipboard?.writeText($('studioStreamKey').value);toast('Stream key copied')}
+function copyStudioSource(){navigator.clipboard?.writeText($('studioSourceUrl').value);toast('Browser Source URL copied')}
+function sendStudioChat(){const input=$('studioChatInput');const text=input.value.trim();if(!text)return;const row=document.createElement('div');row.className='chat-line';row.textContent='You: '+text;$('studioChat').appendChild(row);input.value='';}
+function studioBroadcastSignal(m){if(state.studioSession&&state.studioWs?.readyState===WebSocket.OPEN)state.studioWs.send(JSON.stringify({type:'broadcast-signal',streamKey:state.studioSession.token,...m}))}
+
 async function startCallCamera(){if(state.stream)return;try{state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:state.facing,width:{ideal:1280},height:{ideal:720}},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});$('localVideo').srcObject=state.stream;$('callCamState').textContent='Ready';$('callMicState').textContent='Ready';$('callStatus').textContent='Camera ready — connecting…';$('callAvatarState').textContent=avatarById().name;startTimer();await startAvatarRenderer();await startAvatarSession();await connectSignaling()}catch(e){$('callStatus').textContent='Camera/microphone permission required';toast(e.message||'Allow camera and microphone')}}
 function startTimer(){clearInterval(state.timer);state.seconds=0;state.timer=setInterval(()=>{state.seconds++;$('timer').textContent=String(Math.floor(state.seconds/60)).padStart(2,'0')+':'+String(state.seconds%60).padStart(2,'0')},1000)}
 async function stopStreamOnly(){if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}if($('localVideo'))$('localVideo').srcObject=null;if(state.faceLoop){cancelAnimationFrame(state.faceLoop);state.faceLoop=null}}
-async function connectSignaling(){const code=(localStorage.kelvinCallCode||'').toUpperCase();if(!code)return;if(state.ws?.readyState===WebSocket.OPEN){state.ws.send(JSON.stringify({type:'join-room',code}));return}return new Promise((resolve,reject)=>{state.ws=new WebSocket(wsUrl());state.ws.onopen=()=>{state.ws.send(JSON.stringify({type:'join-room',code}));resolve()};state.ws.onerror=()=>reject(Error('Signaling connection failed'));state.ws.onmessage=async ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}if(m.type==='joined-room'){state.role=m.role;$('callStatus').textContent=m.participants===2?'Peer connected — negotiating…':'Waiting for second device…';$('peerState').textContent=m.participants===2?'Connected':'Waiting'}if(m.type==='peer-ready'&&m.initiator)await makeOffer();if(m.type==='offer'){await ensurePeer();await state.peer.setRemoteDescription(m.offer);const a=await state.peer.createAnswer();await state.peer.setLocalDescription(a);sendSignal({type:'answer',answer:a})}if(m.type==='answer'&&state.peer)await state.peer.setRemoteDescription(m.answer);if(m.type==='ice-candidate'&&state.peer&&m.candidate)try{await state.peer.addIceCandidate(m.candidate)}catch{}if(m.type==='peer-left'){$('callStatus').textContent='Peer left the call';$('peerState').textContent='Disconnected';state.callConnected=false}if(m.type==='room-full'){toast('Call already has two devices');endCall()}};state.ws.onclose=()=>{if(!$('callScreen').classList.contains('hidden'))$('callStatus').textContent='Signaling disconnected'}})}
+async function connectSignaling(){const code=(localStorage.kelvinCallCode||'').toUpperCase();if(!code)return;if(state.ws?.readyState===WebSocket.OPEN){state.ws.send(JSON.stringify({type:'join-room',code}));return}return new Promise((resolve,reject)=>{state.ws=new WebSocket(wsUrl());state.ws.onopen=()=>{state.ws.send(JSON.stringify({type:'join-room',code}));resolve()};state.ws.onerror=()=>reject(Error('Signaling connection failed'));state.ws.onmessage=async ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}if(m.type==='joined-room'){state.role=m.role;$('callStatus').textContent=m.participants===2?'Peer connected — negotiating…':'Waiting for second device…';$('peerState').textContent=m.participants===2?'Connected':'Waiting'}if((m.type==='peer-ready'||m.type==='peer-joined')&&m.initiator)await makeOffer();if(m.type==='offer'){await ensurePeer();await state.peer.setRemoteDescription(m.offer);const a=await state.peer.createAnswer();await state.peer.setLocalDescription(a);sendSignal({type:'answer',answer:a})}if(m.type==='answer'&&state.peer)await state.peer.setRemoteDescription(m.answer);if(m.type==='ice-candidate'&&state.peer&&m.candidate)try{await state.peer.addIceCandidate(m.candidate)}catch{}if(m.type==='peer-left'){$('callStatus').textContent='Peer left the call';$('peerState').textContent='Disconnected';state.callConnected=false}if(m.type==='room-full'){toast('Call already has two devices');endCall()}};state.ws.onclose=()=>{if(!$('callScreen').classList.contains('hidden'))$('callStatus').textContent='Signaling disconnected'}})}
 function sendSignal(m){if(state.ws?.readyState===WebSocket.OPEN)state.ws.send(JSON.stringify(m))}
-async function ensurePeer(){if(state.peer)return;state.peer=new RTCPeerConnection(rtcConfig);if(state.stream)state.stream.getTracks().forEach(t=>state.peer.addTrack(t,state.stream));state.peer.ontrack=e=>{const r=e.streams[0];$('remoteVideo').srcObject=r;$('remoteVideo').classList.remove('hidden');$('avatarOutput').classList.add('hidden');state.callConnected=true;$('callStatus').textContent='Live Kelvin connection';$('peerState').textContent='Connected'};state.peer.onicecandidate=e=>e.candidate&&sendSignal({type:'ice-candidate',candidate:e.candidate});state.peer.onconnectionstatechange=()=>{const s=state.peer.connectionState;if(s==='connected'){state.callConnected=true;$('callStatus').textContent='Live connection';$('peerState').textContent='Connected'}if(['failed','disconnected'].includes(s)){$('peerState').textContent=s;$('callStatus').textContent='Connection '+s}}}
+async function ensurePeer(){if(state.peer)return;state.peer=new RTCPeerConnection(rtcConfig);const media=state.studioMode==='ai'&&$('avatarOutput')?.srcObject ? $('avatarOutput').srcObject : state.stream; if(media)media.getTracks().forEach(t=>state.peer.addTrack(t,media));state.peer.ontrack=e=>{const r=e.streams[0];$('remoteVideo').srcObject=r;$('remoteVideo').classList.remove('hidden');$('avatarOutput').classList.add('hidden');state.callConnected=true;$('callStatus').textContent='Live Kelvin connection';$('peerState').textContent='Connected'};state.peer.onicecandidate=e=>e.candidate&&sendSignal({type:'ice-candidate',candidate:e.candidate});state.peer.onconnectionstatechange=()=>{const s=state.peer.connectionState;if(s==='connected'){state.callConnected=true;$('callStatus').textContent='Live connection';$('peerState').textContent='Connected'}if(['failed','disconnected'].includes(s)){$('peerState').textContent=s;$('callStatus').textContent='Connection '+s}}}
 async function makeOffer(){await ensurePeer();const o=await state.peer.createOffer();await state.peer.setLocalDescription(o);sendSignal({type:'offer',offer:o})}
 async function switchCamera(){await setFacing(state.facing==='user'?'environment':'user')}
 function toggleMic(){if(!state.stream)return;const t=state.stream.getAudioTracks()[0];if(t){state.micOn=!state.micOn;t.enabled=state.micOn;$('micBtn').textContent=state.micOn?'🎤':'🔇';$('callMicState').textContent=state.micOn?'Enabled':'Muted'}}
@@ -1363,7 +1439,7 @@ async function startAvatarRenderer(){
 async function recordCamera(f=state.facing){state.facing=f;localStorage.kelvinFacing=f;try{if(state.recordStream)state.recordStream.getTracks().forEach(t=>t.stop());state.recordStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:f,width:{ideal:1920},height:{ideal:1080}},audio:{echoCancellation:true,noiseSuppression:true}});$('recordPreview').srcObject=state.recordStream;$('recordCameraBadge').textContent=f==='user'?'Front camera':'Back camera';$('recordStatus').textContent='Camera ready.'}catch(e){toast(e.message||'Camera permission required')}}
 async function prepareRecordPreview(){if($('recordSource').value==='avatar'&&$('avatarOutput').srcObject){$('recordPreview').srcObject=$('avatarOutput').srcObject;state.recordingSource='avatar';$('recordStatus').textContent='Avatar output selected.'}else{state.recordingSource='camera';if(!state.recordStream)await recordCamera(state.facing);else $('recordPreview').srcObject=state.recordStream}}
 $('recordSource')?.addEventListener('change',prepareRecordPreview)
-function startRecording(){const s=$('recordPreview').srcObject||state.recordStream;if(!s)return toast('No recording source is ready');let mime='video/webm;codecs=vp9,opus';if(!window.MediaRecorder)return toast('MediaRecorder is not supported by this browser');if(!MediaRecorder.isTypeSupported(mime))mime='video/webm';try{state.recordChunks=[];state.recording=new MediaRecorder(s,{mimeType:mime});state.recording.ondataavailable=e=>e.data.size&&state.recordChunks.push(e.data);state.recording.onstop=()=>{const blob=new Blob(state.recordChunks,{type:state.recording.mimeType});const url=URL.createObjectURL(blob);$('recordStatus').innerHTML='Recording complete. <a href="'+url+'" download="kelvin-live-recording.webm" style="color:#8da1ff">Download</a>';if(getPrivacy()){saveGallery({type:'video',url,name:'Kelvin recording',source:'recording'});blobToDataUrl(blob).then(data=>serverUploadDataUrl(data,'Kelvin recording','video')).then(()=>syncServerGallery()).catch(()=>{})}};state.recording.start(250);$('recordStatus').textContent='Recording…';$('recordStart').disabled=true}catch(e){toast(e.message)}}
+function startRecording(){const s=$('recordPreview').srcObject||state.recordStream;if(!s)return toast('No recording source is ready');let mime='video/webm;codecs=vp9,opus';if(!window.MediaRecorder)return toast('MediaRecorder is not supported by this browser');if(!MediaRecorder.isTypeSupported(mime))mime='video/webm';try{state.recordChunks=[];state.recording=new MediaRecorder(s,{mimeType:mime});state.recording.ondataavailable=e=>e.data.size&&state.recordChunks.push(e.data);state.recording.onstop=()=>{const blob=new Blob(state.recordChunks,{type:state.recording.mimeType});const url=URL.createObjectURL(blob);$('recordStatus').innerHTML='Recording complete. <a href="'+url+'" download="kelvin-live-recording.webm" style="color:#8da1ff">Download</a>';if(getPrivacy())saveGallery({type:'video',url,name:'Kelvin recording',source:'recording'})};state.recording.start(250);$('recordStatus').textContent='Recording…';$('recordStart').disabled=true}catch(e){toast(e.message)}}
 function stopRecording(){if(state.recording?.state==='recording'){state.recording.stop();$('recordStart').disabled=false}}
 function setVideoMode(el,m){state.videoMode=m;document.querySelectorAll('#generateVideo .tab').forEach(x=>x.classList.remove('active'));el.classList.add('active')}
 async function fileData(input){const f=input?.files?.[0];if(!f)return null;return{name:f.name,type:f.type,size:f.size,data:await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=rej;rd.readAsDataURL(f)})}}
@@ -1371,51 +1447,29 @@ async function apiJSON(url,body,options={}){const method=options.method||'POST';
 function engineUI(kind,text,p,msg){const box=$(kind+'Engine');box.classList.remove('hidden');$(kind+'EngineState').textContent=text;$(kind+'Progress').style.width=p+'%';$(kind+'EngineMessage').textContent=msg}
 async function waitJob(id,kind,onResult){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));try{const r=await fetch('/api/jobs/'+encodeURIComponent(id),{headers:state.authToken?{Authorization:'Bearer '+state.authToken}:{}});const d=await r.json();const j=d.job||d;if(j.progress!=null)engineUI(kind,j.status||'Processing',Math.max(5,Math.min(99,j.progress)),j.message||'Processing…');if(['completed','complete','succeeded'].includes(String(j.status).toLowerCase())){onResult(j.result||j);return}if(['failed','error','cancelled'].includes(String(j.status).toLowerCase()))throw Error(j.error||j.message||'Generation failed')}catch(e){throw e}}throw Error('Generation timed out')}
 function resultURL(r){return r?.url||r?.data||r?.output?.url||r?.output?.data||r}
-async function blobToDataUrl(blob){
-  return await new Promise((resolve,reject)=>{const rd=new FileReader();rd.onload=()=>resolve(rd.result);rd.onerror=reject;rd.readAsDataURL(blob)})
-}
-async function puterSaveBlobToServer(blob,name,type){
-  if(!blob)return null;
-  const dataUrl=await blobToDataUrl(blob);
-  const uploaded=await serverUploadDataUrl(dataUrl,name,type);
-  return uploaded?.url||null;
-}
-async function puterImageToDataUrl(img){
-  if(!img)return null;
-  try{
-    if(img.src && /^data:/i.test(img.src))return img.src;
-    const response=await fetch(img.src);const blob=await response.blob();return await blobToDataUrl(blob);
-  }catch(e){return img.src||null}
-}
 async function generateImage(){
   const prompt=$('imagePrompt').value.trim();if(!prompt)return toast('Enter an image description');
   const ref=await fileData($('imageReference'));
   if(ref&&!$('imageConsent').checked){engineUI('image','Failed',100,'Authorization is required before processing another person’s image or video');return toast('Confirm that you own the image or have permission to use it.')}
-  if(!window.puter?.ai?.txt2img){engineUI('image','Failed',100,'Puter image engine is not available.');return toast('Puter image engine is not available.')}
-  engineUI('image','Processing',10,ref?'Sending the reference image to Puter…':'Sending prompt to Puter…');
+  engineUI('image','Queued',5,'Sending image request…');
   try{
-    const options={};
-    if(ref)options.input_image=ref.data;
-    const image=await puter.ai.txt2img(prompt,options);
-    const url=await puterImageToDataUrl(image);if(!url)throw Error('Puter returned no image output');
-    let finalUrl=url;try{const uploaded=await serverUploadDataUrl(url,ref?'Kelvin edited image':'Kelvin generated image','image');if(uploaded?.url)finalUrl=uploaded.url;}catch{}
-    $('generatedImagePreview').src=finalUrl;$('generatedImage').classList.remove('hidden');state.lastGenerated={type:'image',url:finalUrl,name:ref?'Edited image':'Generated image'};
-    engineUI('image','Complete',100,ref?'Image edited with Puter.':'Image generated with Puter.');await syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
-  }catch(e){const message=e?.message||String(e)||'Puter image generation failed';engineUI('image','Failed',100,message);toast(message)}
+    const endpoint=ref?'/api/ai/image-edit':'/api/ai/image';
+    const body=ref?{imageDataUrl:ref.data,prompt,authorized:true,consent:true}:{prompt};
+    const d=await apiJSON(endpoint,body);let result;
+    if(d.jobId||d.job?.id){engineUI('image','Processing',10,'Image generation is running on the server…');await waitJob(d.jobId||d.job.id,'image',r=>result=r)}else result=d.result;
+    const url=resultURL(result);if(!url)throw Error('Image engine returned no output');
+    $('generatedImagePreview').src=url;$('generatedImage').classList.remove('hidden');state.lastGenerated={type:'image',url,name:ref?'Edited image':'Generated image'};
+    engineUI('image','Complete',100,ref?'Image edit completed by the configured engine.':'Image generated by the configured engine.');syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
+  }catch(e){engineUI('image','Failed',100,e.message);toast(e.message)}
 }
 async function loadVoices(){
-  const select=$('voiceSelect');if(!select)return;
+  const select=$('voiceSelect'); if(!select)return;
   try{
-    if(window.puter?.ai?.txt2speech?.listVoices){
-      const voices=await puter.ai.txt2speech.listVoices();
-      state.voices=Array.isArray(voices)?voices:[];
-      select.innerHTML='<option value="">Select voice</option>'+state.voices.map(v=>`<option value="${escAttr(v.id||'')}">${esc(v.name||v.id||'Voice')} — ${esc(v.provider||'')}</option>`).join('');
-      $('voiceStatus').textContent=`${state.voices.length} built-in voices available.`;
-      return;
-    }
-  }catch(e){console.warn('Puter voice list unavailable',e)}
-  select.innerHTML='<option value="Joanna">Joanna</option><option value="Matthew">Matthew</option>';
-  $('voiceStatus').textContent='Using built-in voice options.';
+    const d=await apiJSON('/api/ai/voices',{},{method:'GET'});
+    state.voices=d.voices||[];
+    select.innerHTML='<option value="">Select voice</option>'+state.voices.map(v=>`<option value="${escAttr(v.voiceId||v.id||'')}">${esc(v.name||'Voice')}</option>`).join('');
+    try{const lib=await apiJSON('/api/ai/voice/library',{},{method:'GET'});(lib.voices||[]).forEach(v=>{if(!state.voices.some(x=>(x.voiceId||x.id)===v.voice_id)){state.voices.push({voiceId:v.voice_id,name:v.name||'Library voice'});}});select.innerHTML='<option value="">Select voice</option>'+state.voices.map(v=>`<option value="${escAttr(v.voiceId||v.id||'')}">${esc(v.name||'Voice')}</option>`).join('');}catch{}
+  }catch(e){if(select)select.innerHTML='<option value="">Voice provider not configured</option>';if($('voiceStatus'))$('voiceStatus').textContent=e.message||'Voice service unavailable'}
 }
 async function startVoiceRecording(){
   if(!navigator.mediaDevices?.getUserMedia)return toast('Microphone is not available');
@@ -1423,65 +1477,46 @@ async function startVoiceRecording(){
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     state.voiceChunks=[];state.voiceRecorder=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':undefined});
     state.voiceRecorder.ondataavailable=e=>e.data.size&&state.voiceChunks.push(e.data);
-    state.voiceRecorder.onstop=()=>{const blob=new Blob(state.voiceChunks,{type:state.voiceRecorder.mimeType||'audio/webm'});const rd=new FileReader();rd.onload=()=>{state.recordedVoiceDataUrl=rd.result;$('voiceCloneBtn').disabled=false;$('voiceStatus').textContent='Voice recorded. Tap Save My Voice Recording.'};rd.readAsDataURL(blob);stream.getTracks().forEach(t=>t.stop());};
+    state.voiceRecorder.onstop=()=>{const blob=new Blob(state.voiceChunks,{type:state.voiceRecorder.mimeType||'audio/webm'});const rd=new FileReader();rd.onload=()=>{state.recordedVoiceDataUrl=rd.result;$('voiceCloneBtn').disabled=false;$('voiceStatus').textContent='Voice recorded. Tap Save My Voice to create the clone.'};rd.readAsDataURL(blob);stream.getTracks().forEach(t=>t.stop());};
     state.voiceRecorder.start(250);$('voiceRecordStart').disabled=true;$('voiceRecordStop').disabled=false;$('voiceStatus').textContent='Recording your voice…';
   }catch(e){toast(e.message||'Microphone permission required')}
 }
 function stopVoiceRecording(){if(state.voiceRecorder?.state==='recording'){state.voiceRecorder.stop();$('voiceRecordStart').disabled=false;$('voiceRecordStop').disabled=true}}
 async function cloneRecordedVoice(){
   if(!state.recordedVoiceDataUrl)return toast('Record your voice first');
-  const name=($('voiceName')?.value||'My Voice Recording').trim();
-  try{
-    const uploaded=await serverUploadDataUrl(state.recordedVoiceDataUrl,name,'audio');
-    state.voiceStatus='';
-    state.recordedVoiceDataUrl=null;$('voiceCloneBtn').disabled=true;$('voiceStatus').textContent=uploaded?'Your voice recording was saved to Gallery.':'Your voice recording is saved in this browser.';
-    if(uploaded)await syncServerGallery();toast('Voice recording saved to Gallery');
-  }catch(e){$('voiceStatus').textContent=e.message;toast(e.message)}
+  const name=($('voiceName')?.value||'My Voice').trim();
+  if(!name)return toast('Enter a voice name');
+  $('voiceStatus').textContent='Creating your authorized voice clone…';
+  try{const d=await apiJSON('/api/ai/voice/clone',{name,audioDataUrl:state.recordedVoiceDataUrl,authorized:true,consent:true});state.voices.unshift(d.voice);await loadVoices();$('voiceSelect').value=d.voice.voiceId;state.recordedVoiceDataUrl=null;$('voiceCloneBtn').disabled=true;$('voiceStatus').textContent='Your voice is ready.';toast('Your voice was saved');}catch(e){$('voiceStatus').textContent=e.message;toast(e.message)}
 }
-async function puterVideoToDataUrl(video, path){
-  try{
-    if(path&&window.puter?.fs?.read){const blob=await puter.fs.read(path);return await blobToDataUrl(blob)}
-    if(video?.src){const response=await fetch(video.src);return await blobToDataUrl(await response.blob())}
-  }catch(e){console.warn('Could not copy Puter video bytes',e)}
-  return video?.src||null;
-}
-async function runPuterVideo({prompt,inputReference=null,testMode=false,mode='image-to-video'}){
-  if(!window.puter?.ai?.txt2vid)throw Error('Puter video engine is not available.');
-  const fileName=`videos/kelvin-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`;
-  const options={model:'veo-3.1-lite',seconds:4,size:'1280x720',test_mode:testMode,puter_output_path:fileName};
-  if(inputReference)options.input_reference=inputReference;
-  const video=await puter.ai.txt2vid({prompt:prompt||'A natural cinematic movement based on the supplied image.',...options});
-  const dataUrl=await puterVideoToDataUrl(video,fileName);
-  if(!dataUrl)throw Error('Puter returned no video output');
-  let finalUrl=dataUrl;try{const uploaded=await serverUploadDataUrl(dataUrl,`Kelvin ${testMode?'test ':'generated '}video`,'video');if(uploaded?.url)finalUrl=uploaded.url;}catch{}
-  return {url:finalUrl,puterUrl:video?.src||String(video),mode};
-}
-async function testPuterVideo(){
-  engineUI('video','Testing',10,'Running Puter test mode. This does not use AI credits…');
-  try{
-    const r=await runPuterVideo({prompt:'A simple cinematic test clip of a person walking outdoors.',testMode:true});
-    $('generatedVideoPlayer').src=r.url;$('generatedVideo').classList.remove('hidden');state.lastGenerated={type:'video',url:r.url,name:'Puter video test'};engineUI('video','Test complete',100,'Puter video integration is working.');await syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);toast('Free video test completed');
-  }catch(e){engineUI('video','Test failed',100,e.message||'Puter video test failed');toast(e.message||'Puter video test failed')}
-}
+
 async function generateVideo(){
-  const media=await fileData($('videoImage')),prompt=$('videoPrompt').value.trim(),avatar=avatarById();
-  if(media&&!$('videoConsent').checked){engineUI('video','Failed',100,'Authorization is required before processing uploaded media.');return toast('Confirm that you own the media or have permission to use it.')}
-  if(!media&&!prompt)return toast('Choose an image or enter a generation prompt first');
-  if(media?.type?.startsWith('video/'))return toast('Puter image-to-video uses an image as the starting frame. Use Image → Video for this workflow.');
-  engineUI('video','Processing',5,'Sending the request to Puter…');
+  const media=await fileData($('videoImage')),audio=await fileData($('videoAudio')),prompt=$('videoPrompt').value.trim(),avatar=avatarById();
+  if(media && !$('videoConsent').checked){
+    engineUI('video','Failed',100,'Authorization is required before processing uploaded media.');
+    return toast('Confirm that you own the media or have permission to use it.');
+  }
+  if(!media&&!prompt)return toast('Choose media or enter a generation prompt first');
+  engineUI('video','Queued',5,'Sending request to the configured video engine…');
   try{
-    let reference=media?.data||null;
-    let generationPrompt=prompt||'Animate the selected image naturally with realistic movement and a smooth camera motion.';
+    let endpoint='/api/ai/video',body={mode:state.videoMode,prompt,audioDataUrl:audio?.data||null,voiceId:$('voiceSelect')?.value||null};
     if(state.videoMode==='talking-avatar'){
-      if(!avatar?.src)return toast('Choose an authorized avatar first.');
-      reference=avatar.src;
-      generationPrompt=prompt||'Animate this authorized avatar with natural head movement, blinking, facial expression and subtle speaking-style motion.';
+      endpoint='/api/ai/talking-avatar';
+      body={prompt:prompt||'Animate this authorized avatar.',avatarImage:avatar?.src||null,audioDataUrl:audio?.data||null,voiceId:$('voiceSelect')?.value||null,authorized:true,consent:true};
+      if(!body.avatarImage)return toast('Choose an uploaded avatar before using Talking Avatar.');
+    }else if(state.videoMode==='video-avatar'){
+      endpoint='/api/ai/replace';
+      body={sourceVideo:media?.data||null,avatarImage:avatar?.src||null,prompt:prompt||'Replace the authorized subject while preserving the source movement and performance.',consent:true,authorized:true};
+      if(!body.sourceVideo||!body.avatarImage)return toast('Choose a source video and an authorized avatar first.');
+    }else if(media){
+      if(media.type.startsWith('video/'))body.sourceVideo=media.data;else body.image=media.data;
     }
-    if(state.videoMode==='video-avatar')return toast('Video → Avatar replacement needs a dedicated video face-replacement engine. It is not being faked with Puter.');
-    const r=await runPuterVideo({prompt:generationPrompt,inputReference:reference,testMode:false,mode:state.videoMode});
-    $('generatedVideoPlayer').src=r.url;$('generatedVideo').classList.remove('hidden');state.lastGenerated={type:'video',url:r.url,name:state.videoMode==='talking-avatar'?'Talking avatar video':'Generated video'};
-    engineUI('video','Complete',100,'Video generated with Puter and saved to Gallery.');await syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
-  }catch(e){engineUI('video','Failed',100,e.message||'Puter video generation failed');toast(e.message||'Puter video generation failed')}
+    const d=await apiJSON(endpoint,body);
+    let result;if(d.jobId||d.job?.id){engineUI('video','Processing',10,'Video generation is running on the server…');await waitJob(d.jobId||d.job.id,'video',r=>result=r)}else result=d.result;
+    const url=resultURL(result);if(!url)throw Error('Video engine returned no output');
+    $('generatedVideoPlayer').src=url;$('generatedVideo').classList.remove('hidden');state.lastGenerated={type:'video',url,name:'Generated video'};
+    engineUI('video','Complete',100,'Video generated by the configured engine.');syncServerGallery();if(getPrivacy())saveGallery(state.lastGenerated);
+  }catch(e){engineUI('video','Failed',100,e.message);toast(e.message)}
 }
 async function replaceMedia(){
   if(!$('replaceConsent').checked)return toast('Confirm authorization first');
@@ -1501,10 +1536,10 @@ function saveGallery(item){if(!getPrivacy())return;const g=getGallery();const ex
 function getGallery(){try{return JSON.parse(localStorage.kelvinGallery||'[]')}catch{return[]}}
 async function clearGallery(){if(!confirm('Clear your Kelvin Live gallery?'))return;localStorage.removeItem('kelvinGallery');try{for(const item of (state.serverGallery||[])){if(item.id)await fetch('/api/gallery/'+encodeURIComponent(item.id),{method:'DELETE',headers:state.authToken?{Authorization:'Bearer '+state.authToken}:{}})} }catch{}state.serverGallery=[];renderGallery();toast('Gallery cleared') }
 function filterGallery(type,el){document.querySelectorAll('#gallery .tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');renderGallery(type)}
-function renderGallery(type='all'){const local=getGallery();const server=state.serverGallery||[];const merged=[...server.map(x=>({id:x.id,type:x.type,url:x.url,name:x.title||x.name,createdAt:x.createdAt,server:true})),...local];const seen=new Set();const g=merged.filter(x=>(type==='all'||x.type===type)&&x.url).filter(x=>{const k=(x.type||'')+'|'+x.url;if(seen.has(k))return false;seen.add(k);return true});$('galleryGrid').innerHTML=g.length?g.map(x=>`<div class="gallery-item">${x.type==='video'?`<video src="${escAttr(x.url)}" controls playsinline></video>`:x.type==='audio'?`<audio src="${escAttr(x.url)}" controls style="width:100%"></audio>`:`<img src="${escAttr(x.url)}">`}<div class="gallery-label">${esc(x.name||x.type)}</div></div>`).join(''):`<div class="card" style="grid-column:1/-1"><p>No saved creations yet.</p></div>`}
+function renderGallery(type='all'){const local=getGallery();const server=state.serverGallery||[];const merged=[...server.map(x=>({id:x.id,type:x.type,url:x.url,name:x.title||x.name,createdAt:x.createdAt,server:true})),...local];const seen=new Set();const g=merged.filter(x=>(type==='all'||x.type===type)&&x.url).filter(x=>{const k=(x.type||'')+'|'+x.url;if(seen.has(k))return false;seen.add(k);return true});$('galleryGrid').innerHTML=g.length?g.map(x=>`<div class="gallery-item">${x.type==='video'?`<video src="${escAttr(x.url)}" controls playsinline></video>`:`<img src="${escAttr(x.url)}">`}<div class="gallery-label">${esc(x.name||x.type)}</div></div>`).join(''):`<div class="card" style="grid-column:1/-1"><p>No saved creations yet.</p></div>`}
 async function serverUploadDataUrl(dataUrl,name,type='image'){
   if(!dataUrl)return null;
-  try{const d=await apiJSON('/api/media/upload',{dataUrl,name,type});return d.item||d.upload||null}catch(e){console.warn('Server upload unavailable',e);return null}
+  try{const d=await apiJSON('/api/media/upload',{dataUrl,name,type});return d.upload||null}catch(e){console.warn('Server upload unavailable',e);return null}
 }
 async function recordServerConsent(assetId,subjectName){
   try{return await apiJSON('/api/consent',{assetId,subjectName,authorized:true,notes:'Kelvin Live authorized media confirmation.'})}catch(e){console.warn('Consent sync unavailable',e);return null}
