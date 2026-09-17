@@ -1519,13 +1519,6 @@ function addAvatar({
 ------------------------------------------------------- */
 
 const rooms = new Map();
-const liveSessions = new Map();
-
-function originFromRequest(req){
-  const proto=req.headers['x-forwarded-proto']||'http';
-  const host=req.headers.host||`localhost:${PORT}`;
-  return `${proto}://${host}`;
-}
 
 function createRoom() {
   let code;
@@ -1623,6 +1616,20 @@ function broadcastToRoom(
     }
   }
 }
+
+/* -------------------------------------------------------
+   LIVE BROADCAST SESSIONS
+------------------------------------------------------- */
+
+const liveSessions = new Map();
+
+function makeLiveToken(){ return crypto.randomBytes(24).toString('hex'); }
+function publicLiveSession(session){
+  return {id:session.id,streamKey:session.streamKey,token:session.token,browserSourceUrl:session.browserSourceUrl,mode:session.mode,resolution:session.resolution,fps:session.fps,live:session.live,viewers:session.viewers,creatorName:session.creatorName};
+}
+
+function getLiveSessionById(idValue){ return [...liveSessions.values()].find(s=>s.id===idValue)||null; }
+function getLiveSessionByToken(token){ return liveSessions.get(String(token||'')); }
 
 /* -------------------------------------------------------
    HTTP ROUTES
@@ -1882,25 +1889,6 @@ async function handleRequest(req, res) {
 
       return;
     }
-
-    /* ---------------- LIVE STUDIO ---------------- */
-    if(req.method==='POST' && pathname==='/api/live/session'){
-      const user=getUserFromRequest(req); const sessionId=id('live');
-      const streamKey='KLV-'+crypto.randomBytes(18).toString('base64url');
-      const token=crypto.randomBytes(24).toString('base64url');
-      const session={id:sessionId,userId:user?.id||null,streamKey,token,mode:'real',live:false,createdAt:now()};
-      liveSessions.set(sessionId,session);
-      sendJSON(res,201,{ok:true,session:{...session,browserSourceUrl:`${originFromRequest(req)}/obs?token=${encodeURIComponent(token)}`}}); return;
-    }
-    if(req.method==='POST' && ['/api/live/start','/api/live/stop','/api/live/mode'].includes(pathname)){
-      const body=await readJSON(req); const session=liveSessions.get(body.sessionId); if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;}
-      if(pathname.endsWith('/start'))session.live=true;
-      if(pathname.endsWith('/stop'))session.live=false;
-      if(pathname.endsWith('/mode'))session.mode=body.mode==='ai'?'ai':'real';
-      sendJSON(res,200,{ok:true,session}); return;
-    }
-    const liveMatch=pathname.match(/^\/api\/live\/session\/([^/]+)$/);
-    if(req.method==='GET' && liveMatch){const session=[...liveSessions.values()].find(x=>x.token===liveMatch[1]||x.id===liveMatch[1]);if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;}sendJSON(res,200,{ok:true,session:{id:session.id,streamKey:session.streamKey,mode:session.mode,live:session.live}});return;}
 
     /* ---------------- CALL ---------------- */
 
@@ -2648,6 +2636,45 @@ async function handleRequest(req, res) {
       return;
     }
 
+    /* ---------------- LIVE STUDIO ---------------- */
+    if(req.method==='POST' && pathname==='/api/live/session'){
+      const user=getUserFromRequest(req);
+      const token=makeLiveToken();
+      const session={id:id('live'),userId:user?.id||null,creatorName:user?.name||'Kelvin Creator',streamKey:'KLV_'+crypto.randomBytes(12).toString('base64url'),token,mode:'real',resolution:'1080p',fps:30,live:false,viewers:0,createdAt:now()};
+      session.browserSourceUrl=`${parsed.origin}/obs?token=${encodeURIComponent(token)}`;
+      liveSessions.set(token,session);
+      sendJSON(res,201,{ok:true,session:publicLiveSession(session)}); return;
+    }
+    if(req.method==='POST' && pathname==='/api/live/start'){
+      const body=await readJSON(req); const session=getLiveSessionById(body.sessionId);
+      if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;}
+      session.live=true; session.mode=body.mode==='ai'?'ai':'real'; session.resolution=clean(body.resolution,20)||'1080p'; session.fps=Number(body.fps)||30; session.avatarId=clean(body.avatarId,200)||null; session.prompt=clean(body.prompt,5000)||''; session.startedAt=now();
+      for(const client of wss.clients){if(client.broadcastToken===session.token && client.readyState===WebSocket.OPEN)client.send(JSON.stringify({type:'broadcast-status',live:true,mode:session.mode}));}
+      sendJSON(res,200,{ok:true,session:publicLiveSession(session)}); return;
+    }
+    if(req.method==='POST' && pathname==='/api/live/stop'){
+      const body=await readJSON(req); const session=getLiveSessionById(body.sessionId);
+      if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;} session.live=false;session.viewers=0;for(const client of wss.clients){if(client.broadcastToken===session.token&&client.readyState===WebSocket.OPEN)client.send(JSON.stringify({type:'broadcast-status',live:false}));}sendJSON(res,200,{ok:true,session:publicLiveSession(session)});return;
+    }
+    if(req.method==='POST' && pathname==='/api/live/mode'){
+      const body=await readJSON(req); const session=getLiveSessionById(body.sessionId);
+      if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;} session.mode=body.mode==='ai'?'ai':'real';sendJSON(res,200,{ok:true,session:publicLiveSession(session)});return;
+    }
+    if(req.method==='POST' && pathname==='/api/live/regenerate'){
+      const body=await readJSON(req); const session=getLiveSessionById(body.sessionId);
+      if(!session){sendJSON(res,404,{ok:false,error:'Live session not found'});return;} const oldToken=session.token;session.token=makeLiveToken();session.browserSourceUrl=`${parsed.origin}/obs?token=${encodeURIComponent(session.token)}`;liveSessions.delete(oldToken);liveSessions.set(session.token,session);sendJSON(res,200,{ok:true,session:publicLiveSession(session)});return;
+    }
+    if(req.method==='GET' && pathname==='/api/live/feed'){
+      const items=[...liveSessions.values()].filter(s=>s.live).map(publicLiveSession);sendJSON(res,200,{ok:true,items});return;
+    }
+    const obsMatch=pathname==='/obs';
+    if(req.method==='GET' && obsMatch){
+      const token=parsed.searchParams.get('token'); const session=getLiveSessionByToken(token);
+      if(!session){sendText(res,404,'Kelvin Browser Source: invalid or expired private URL');return;}
+      const html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kelvin Output</title><style>html,body{margin:0;background:#05060b;width:100%;height:100%;overflow:hidden}video{width:100%;height:100%;object-fit:cover;display:block}#s{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9ca6bd;font:16px system-ui;background:radial-gradient(circle at 70% 20%,#15394b,#05060b 60%)}.live{color:#b7f6d8}</style></head><body><video id="v" autoplay playsinline></video><div id="s">Camera preview — waiting for Kelvin stream</div><script>const token=${JSON.stringify(token)};const ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');let pc;ws.onopen=()=>ws.send(JSON.stringify({type:'broadcast-join',streamKey:token,role:'viewer'}));ws.onmessage=async e=>{let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='broadcast-signal'&&m.signal&&m.signal.type==='offer'){pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});pc.ontrack=x=>{document.getElementById('v').srcObject=x.streams[0];document.getElementById('s').style.display='none'};pc.onicecandidate=x=>x.candidate&&ws.send(JSON.stringify({type:'broadcast-signal',streamKey:token,to:m.from,signal:{type:'ice-candidate',candidate:x.candidate}}));await pc.setRemoteDescription(m.offer);const a=await pc.createAnswer();await pc.setLocalDescription(a);ws.send(JSON.stringify({type:'broadcast-signal',streamKey:token,to:m.from,signal:{type:'answer',answer:a}}))}if(m.type==='broadcast-signal'&&m.signal&&pc){if(m.signal.type==='ice-candidate'&&m.signal.candidate)try{await pc.addIceCandidate(m.signal.candidate)}catch{}}if(m.type==='broadcast-status'&&m.live===false){document.getElementById('s').style.display='flex';document.getElementById('s').textContent='Stream offline'}};</script></body></html>`;
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(html);return;
+    }
+
     /* ---------------- JOB STATUS ---------------- */
 
     const jobMatch =
@@ -2737,11 +2764,6 @@ async function handleRequest(req, res) {
       );
 
       return;
-    }
-
-    if(req.method==='GET' && pathname==='/obs'){
-      const token=new URL(req.url,originFromRequest(req)).searchParams.get('token')||'';
-      sendText(res,200,`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#000;width:100%;height:100%;overflow:hidden}video{width:100%;height:100%;object-fit:cover;background:#000}</style></head><body><video id="v" autoplay playsinline muted></video><script>const token=${JSON.stringify(token)};const ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');let pc;ws.onopen=()=>ws.send(JSON.stringify({type:'broadcast-join',streamKey:token,role:'viewer'}));ws.onmessage=async e=>{const m=JSON.parse(e.data);if(m.type==='broadcast-offer'){pc=new RTCPeerConnection();pc.ontrack=e=>v.srcObject=e.streams[0];pc.onicecandidate=e=>e.candidate&&ws.send(JSON.stringify({type:'broadcast-signal',streamKey:token,signal:{type:'ice-candidate',candidate:e.candidate}}));await pc.setRemoteDescription(m.offer);const a=await pc.createAnswer();await pc.setLocalDescription(a);ws.send(JSON.stringify({type:'broadcast-signal',streamKey:token,signal:{type:'answer',answer:a}}))}if(m.signal&&m.signal.type==='ice-candidate'&&pc)try{await pc.addIceCandidate(m.signal.candidate)}catch{}};</script></body></html>`);return;
     }
 
     /* ---------------- STATIC APP ---------------- */
@@ -2934,18 +2956,18 @@ wss.on(
           return;
         }
 
-        if(type==='broadcast-signal'){
-          const key=clean(message.streamKey,100);
-          for(const peer of wss.clients){
-            if(peer!==ws && peer.broadcastKey===key && peer.readyState===WebSocket.OPEN)peer.send(JSON.stringify({...message,from:ws.id}));
-          }
+        if(type==='broadcast-join'){
+          const token=clean(message.streamKey,200); const session=getLiveSessionByToken(token);
+          if(!session){ws.send(JSON.stringify({type:'error',error:'Invalid private stream key'}));return;}
+          ws.broadcastToken=token; ws.broadcastRole=message.role==='broadcaster'?'broadcaster':'viewer';
+          if(ws.broadcastRole==='broadcaster'){session.broadcaster=ws;ws.send(JSON.stringify({type:'broadcast-joined',live:session.live}));for(const client of wss.clients){if(client!==ws&&client.broadcastToken===token&&client.broadcastRole==='viewer'&&client.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'broadcast-viewer-joined',viewerId:client.id}));}}
+          else {session.viewers=(session.viewers||0)+1; if(session.broadcaster?.readyState===WebSocket.OPEN){session.broadcaster.send(JSON.stringify({type:'broadcast-viewer-joined',viewerId:ws.id}));session.broadcaster.send(JSON.stringify({type:'broadcast-viewers',count:session.viewers}));} ws.send(JSON.stringify({type:'broadcast-ready',broadcasterId:session.broadcaster?.id||null,live:session.live}));}
           return;
         }
-        if(type==='broadcast-join'){
-          ws.broadcastKey=clean(message.streamKey,100);
-          ws.broadcastRole=message.role==='viewer'?'viewer':'broadcaster';
-          ws.send(JSON.stringify({type:'broadcast-joined',role:ws.broadcastRole}));
-          if(ws.broadcastRole==='viewer'){ for(const peer of wss.clients){ if(peer!==ws && peer.broadcastKey===ws.broadcastKey && peer.broadcastRole==='broadcaster' && peer.readyState===WebSocket.OPEN){ peer.send(JSON.stringify({type:'broadcast-viewer-joined'})); break; } } }
+        if(type==='broadcast-signal'){
+          const session=getLiveSessionByToken(message.streamKey); if(!session)return;
+          let target=null; if(message.to===session.broadcaster?.id)target=session.broadcaster; else if(message.to){target=[...wss.clients].find(c=>c.id===message.to);}
+          if(target?.readyState===WebSocket.OPEN)target.send(JSON.stringify({type:'broadcast-signal',from:ws.id,signal:message.signal}));
           return;
         }
 
@@ -3004,6 +3026,7 @@ wss.on(
       'close',
       () => {
         removeFromRoom(ws);
+        if(ws.broadcastToken){const session=getLiveSessionByToken(ws.broadcastToken);if(session){if(session.broadcaster===ws){session.broadcaster=null;session.live=false;for(const client of wss.clients){if(client.broadcastToken===ws.broadcastToken&&client.readyState===WebSocket.OPEN)client.send(JSON.stringify({type:'broadcast-status',live:false}))}}else{session.viewers=Math.max(0,(session.viewers||1)-1);if(session.broadcaster?.readyState===WebSocket.OPEN)session.broadcaster.send(JSON.stringify({type:'broadcast-viewer-left',viewerId:ws.id,viewers:session.viewers}))}}}
       }
     );
 
