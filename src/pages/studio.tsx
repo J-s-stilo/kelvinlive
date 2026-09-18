@@ -12,19 +12,209 @@ import {
   VideoOff,
   WandSparkles,
 } from "lucide-react";
-import {
-  useEffect,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 
+interface CameraDevice {
+  deviceId: string;
+  label: string;
+}
+
 export default function Studio() {
-  const [cameraOn, setCameraOn] = useState(true);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [cameraOn, setCameraOn] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [aiLook, setAiLook] = useState(false);
   const [resolution, setResolution] = useState("1080p");
   const [live, setLive] = useState(false);
   const [seconds, setSeconds] = useState(0);
+
+  const [cameraPermission, setCameraPermission] = useState<
+    "idle" | "requesting" | "granted" | "denied"
+  >("idle");
+
+  const [cameraError, setCameraError] = useState("");
+  const [cameras, setCameras] = useState<CameraDevice[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState("");
+
+  async function loadCameras(): Promise<void> {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      return;
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+
+      const videoDevices = devices
+        .filter((device) => device.kind === "videoinput")
+        .map((device, index) => ({
+          deviceId: device.deviceId,
+          label: device.label || `Camera ${index + 1}`,
+        }));
+
+      setCameras(videoDevices);
+
+      if (!selectedCamera && videoDevices.length > 0) {
+        setSelectedCamera(videoDevices[0].deviceId);
+      }
+    } catch {
+      // Device enumeration can fail on some browsers before permission.
+    }
+  }
+
+  async function startCamera(deviceId?: string): Promise<void> {
+    setCameraPermission("requesting");
+    setCameraError("");
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          "Camera access is not supported by this browser.",
+        );
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      const videoWidth =
+        resolution === "1080p" ? 1920 : 1280;
+
+      const videoHeight =
+        resolution === "1080p" ? 1080 : 720;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: {
+            ideal: videoWidth,
+          },
+          height: {
+            ideal: videoHeight,
+          },
+          ...(deviceId
+            ? {
+                deviceId: {
+                  exact: deviceId,
+                },
+              }
+            : {
+                facingMode: {
+                  ideal: "user",
+                },
+              }),
+        },
+        audio: true,
+      });
+
+      streamRef.current = stream;
+
+      const audioTrack = stream.getAudioTracks()[0];
+
+      if (audioTrack) {
+        audioTrack.enabled = micOn;
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraOn(true);
+      setCameraPermission("granted");
+
+      await loadCameras();
+    } catch (error) {
+      console.error(error);
+
+      setCameraOn(false);
+      setCameraPermission("denied");
+
+      setCameraError(
+        "Camera access was not allowed. Please allow camera and microphone access in your browser settings, then try again.",
+      );
+    }
+  }
+
+  function stopCamera(): void {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraOn(false);
+  }
+
+  function toggleCamera(): void {
+    if (cameraOn) {
+      stopCamera();
+      return;
+    }
+
+    void startCamera(selectedCamera || undefined);
+  }
+
+  function toggleMic(): void {
+    const nextMicState = !micOn;
+
+    setMicOn(nextMicState);
+
+    const audioTracks =
+      streamRef.current?.getAudioTracks() ?? [];
+
+    audioTracks.forEach((track) => {
+      track.enabled = nextMicState;
+    });
+  }
+
+  async function handleCameraChange(
+    deviceId: string,
+  ): Promise<void> {
+    setSelectedCamera(deviceId);
+
+    if (cameraOn) {
+      await startCamera(deviceId);
+    }
+  }
+
+  function toggleLive(): void {
+    if (!cameraOn) {
+      setCameraError(
+        "Turn on your camera before starting a live stream.",
+      );
+      return;
+    }
+
+    setLive((value) => {
+      const nextValue = !value;
+
+      if (!nextValue) {
+        setSeconds(0);
+      }
+
+      return nextValue;
+    });
+  }
+
+  useEffect(() => {
+    void startCamera();
+
+    return () => {
+      if (streamRef.current) {
+        streamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
+    };
+    // We only want the initial camera permission request here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!live) {
@@ -47,25 +237,15 @@ export default function Studio() {
     "0",
   )}`;
 
-  function toggleLive(): void {
-    setLive((value) => !value);
-
-    if (live) {
-      setSeconds(0);
-    }
-  }
-
   return (
     <div
       className="space-y-7"
       data-testid="page-studio"
     >
-      <div className="panel hero-radial rounded-[1.5rem] p-6 sm:p-8">
+      <div className="panel hero-radial rounded-[1.5rem] p-5 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <p className="eyebrow">
-              Creator studio
-            </p>
+            <p className="eyebrow">Creator studio</p>
 
             <h1 className="mt-3 text-3xl font-extrabold tracking-[-.05em] sm:text-4xl">
               Go live. Stay present.
@@ -82,8 +262,8 @@ export default function Studio() {
       </div>
 
       <div className="grid gap-7 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
-        <section className="panel rounded-[1.5rem] p-4 sm:p-6">
-          <div className="mb-5 flex items-center justify-between">
+        <section className="panel rounded-[1.5rem] p-3 sm:p-6">
+          <div className="mb-4 flex items-center justify-between px-1 sm:mb-5">
             <div>
               <p className="text-sm font-bold">
                 Camera preview
@@ -98,67 +278,126 @@ export default function Studio() {
               className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-xs text-slate-400"
               data-testid="status-preview"
             >
-              <span className="size-1.5 rounded-full bg-slate-500" />
-              Preview
-            </span>
-          </div>
-
-          <div
-            className={`relative grid min-h-[320px] place-items-center overflow-hidden rounded-2xl border border-white/10 ${
-              cameraOn
-                ? "bg-[radial-gradient(circle_at_50%_35%,rgba(38,174,184,.18),transparent_25%),linear-gradient(135deg,#19283b,#101723_55%,#231c3b)]"
-                : "bg-[#080b11]"
-            }`}
-            data-testid="display-camera-preview"
-          >
-            {cameraOn ? (
-              <div className="text-center">
-                <div className="mx-auto grid size-24 place-items-center rounded-full border border-cyan-300/25 bg-cyan-300/[.08] text-cyan-200">
-                  <Camera
-                    size={36}
-                    strokeWidth={1.4}
-                  />
-                </div>
-
-                <p className="mt-5 text-sm font-bold">
-                  {aiLook
-                    ? "Aurora look preview"
-                    : "Your camera preview"}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  1280 ×{" "}
-                  {resolution === "1080p" ? "1080" : "720"} ·{" "}
-                  {aiLook
-                    ? "AI look active"
-                    : "Natural camera"}
-                </p>
-              </div>
-            ) : (
-              <div className="text-center text-slate-500">
-                <VideoOff
-                  className="mx-auto"
-                  size={30}
-                />
-
-                <p className="mt-3 text-sm">
-                  Camera is off
-                </p>
-              </div>
-            )}
-
-            <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-slate-300 backdrop-blur">
               <span
                 className={`size-1.5 rounded-full ${
                   live
                     ? "live-pulse bg-rose-400"
-                    : "bg-slate-500"
+                    : cameraOn
+                      ? "bg-emerald-400"
+                      : "bg-slate-500"
                 }`}
               />
-              {live ? "Live now" : "Private preview"}
-            </div>
+
+              {live
+                ? "Live"
+                : cameraOn
+                  ? "Camera ready"
+                  : "Preview"}
+            </span>
           </div>
 
+          {/* REAL CAMERA AREA */}
+          <div
+            className="relative h-[68vh] min-h-[500px] max-h-[760px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-black sm:h-[560px]"
+            data-testid="display-camera-preview"
+          >
+            {cameraOn ? (
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="absolute inset-0 h-full w-full object-cover"
+                data-testid="video-camera-preview"
+              />
+            ) : (
+              <div className="absolute inset-0 grid place-items-center bg-[#080b11]">
+                <div className="px-6 text-center">
+                  <VideoOff
+                    className="mx-auto text-slate-500"
+                    size={36}
+                  />
+
+                  <p className="mt-4 text-sm font-bold text-slate-300">
+                    Camera is off
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Turn your camera on to see your live preview.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {cameraPermission === "requesting" && (
+              <div className="absolute inset-0 grid place-items-center bg-black/50 backdrop-blur-sm">
+                <div className="rounded-2xl border border-white/10 bg-black/60 px-6 py-5 text-center">
+                  <Camera
+                    className="mx-auto text-cyan-300"
+                    size={32}
+                  />
+
+                  <p className="mt-3 text-sm font-bold">
+                    Allow camera access
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Your browser will ask for camera and microphone permission.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {cameraError && !cameraOn && (
+              <div className="absolute inset-x-4 bottom-20 rounded-2xl border border-rose-300/20 bg-black/75 p-4 backdrop-blur">
+                <p className="text-sm font-semibold text-rose-200">
+                  Camera access needed
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  {cameraError}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void startCamera(
+                      selectedCamera || undefined,
+                    )
+                  }
+                  className="mt-3 rounded-lg bg-white/[.08] px-4 py-2 text-xs font-bold text-slate-200"
+                >
+                  Allow camera again
+                </button>
+              </div>
+            )}
+
+            <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-xs text-slate-200 backdrop-blur">
+              <span
+                className={`size-1.5 rounded-full ${
+                  live
+                    ? "live-pulse bg-rose-400"
+                    : cameraOn
+                      ? "bg-emerald-400"
+                      : "bg-slate-500"
+                }`}
+              />
+
+              {live
+                ? "Live now"
+                : cameraOn
+                  ? "Your camera"
+                  : "Camera off"}
+            </div>
+
+            {aiLook && cameraOn && (
+              <div className="absolute right-4 top-4 rounded-full border border-violet-300/30 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 backdrop-blur">
+                Aurora look
+              </div>
+            )}
+          </div>
+
+          {/* MAIN CONTROLS */}
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <button
               type="button"
@@ -167,14 +406,13 @@ export default function Studio() {
               data-testid="button-go-live"
             >
               <Radio size={17} />
+
               {live ? "End stream" : "Go Live"}
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                setCameraOn((value) => !value)
-              }
+              onClick={toggleCamera}
               className={`flex items-center justify-center gap-2 rounded-xl border py-3.5 font-semibold ${
                 cameraOn
                   ? "border-cyan-300/30 bg-cyan-300/[.06] text-cyan-100"
@@ -188,14 +426,12 @@ export default function Studio() {
                 <VideoOff size={17} />
               )}
 
-              {cameraOn ? "Camera on" : "Camera off"}
+              {cameraOn ? "Camera" : "Camera off"}
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                setMicOn((value) => !value)
-              }
+              onClick={toggleMic}
               className={`flex items-center justify-center gap-2 rounded-xl border py-3.5 font-semibold sm:col-span-2 ${
                 micOn
                   ? "border-white/10 bg-white/[.03] text-slate-200"
@@ -209,10 +445,11 @@ export default function Studio() {
                 <MicOff size={17} />
               )}
 
-              {micOn ? "Mic on" : "Mic muted"}
+              {micOn ? "Mic" : "Mic muted"}
             </button>
           </div>
 
+          {/* CAMERA + RESOLUTION */}
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_140px]">
             <label className="relative">
               <span className="sr-only">
@@ -220,15 +457,32 @@ export default function Studio() {
               </span>
 
               <select
+                value={selectedCamera}
+                onChange={(event) =>
+                  void handleCameraChange(
+                    event.target.value,
+                  )
+                }
                 className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
                 data-testid="select-camera"
               >
-                <option>
-                  Built-in camera · front
-                </option>
-                <option>
-                  USB camera · studio
-                </option>
+                {cameras.length === 0 ? (
+                  <option value="">
+                    Camera
+                  </option>
+                ) : (
+                  cameras.map((camera, index) => (
+                    <option
+                      key={
+                        camera.deviceId ||
+                        `camera-${index}`
+                      }
+                      value={camera.deviceId}
+                    >
+                      {camera.label}
+                    </option>
+                  ))
+                )}
               </select>
 
               <ChevronDown
@@ -261,6 +515,7 @@ export default function Studio() {
             </label>
           </div>
 
+          {/* AI LOOK */}
           <button
             type="button"
             onClick={() =>
@@ -277,7 +532,7 @@ export default function Studio() {
 
             {aiLook
               ? "AI look active · Aurora"
-              : "Switch to AI look"}
+              : "Switch look →"}
 
             <span className="font-mono text-[.65rem] text-slate-500">
               {aiLook ? "4 cr" : "uses credits"}
@@ -358,7 +613,7 @@ export default function Studio() {
 
               <Metric
                 label="Viewers"
-                value={live ? "12" : "—"}
+                value="—"
                 testId="text-viewer-count"
               />
             </div>
