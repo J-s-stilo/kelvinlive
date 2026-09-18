@@ -3,6 +3,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const creatorProfilesTable = pgTable("creator_profiles", {
@@ -13,7 +14,7 @@ export const creatorProfilesTable = pgTable("creator_profiles", {
 });
 
 export const streamSessionsTable = pgTable("stream_sessions", {
-  id: text("id").primaryKey(),
+  id: uuid("id").defaultRandom().primaryKey(),
   clerkUserId: text("clerk_user_id").notNull(),
   status: text("status").notNull(),
   title: text("title"),
