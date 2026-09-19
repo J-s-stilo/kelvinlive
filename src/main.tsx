@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { ClerkProvider } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/react";
 
 import App from "./App";
 import { ErrorBoundary } from "./components/error-boundary";
@@ -24,5 +24,3 @@ createRoot(rootElement).render(
     </ErrorBoundary>
   </ClerkProvider>,
 );
-
-
