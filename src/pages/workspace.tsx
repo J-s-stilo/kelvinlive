@@ -33,7 +33,11 @@ import {
   transactions,
 } from "@/lib/content";
 
-import { createLucyConnection } from "@/lib/lucy";
+import {
+  createLucyConnection,
+  createLucyMediaSession,
+  type LucyMediaSession,
+} from "@/lib/lucy";
 
 export function FeedPage() {
   const [following, setFollowing] = useState<number[]>([]);
@@ -149,14 +153,19 @@ export function FeedPage() {
 }
 
 export function AiObsPage() {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const outputVideoRef = useRef<HTMLVideoElement | null>(null);
+
   const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const lucyConnectionRef = useRef<
     ReturnType<typeof createLucyConnection> | null
   >(null);
+  const lucyMediaSessionRef =
+    useRef<LucyMediaSession | null>(null);
+
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -172,16 +181,23 @@ export function AiObsPage() {
   const [lucyError, setLucyError] = useState("");
   const [lucyConnected, setLucyConnected] = useState(false);
   const [lucyBusy, setLucyBusy] = useState(false);
+
   const [prompt, setPrompt] = useState(
     "Transform my appearance into a cinematic AI creator while preserving my identity, face, lighting, and natural movement.",
   );
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
+
+  const [recordingSeconds, setRecordingSeconds] =
+    useState(0);
 
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => {
         track.stop();
       });
+
+      lucyMediaSessionRef.current?.close();
+      lucyMediaSessionRef.current = null;
+      lucyConnectionRef.current = null;
 
       if (recordedUrl) {
         URL.revokeObjectURL(recordedUrl);
@@ -190,8 +206,6 @@ export function AiObsPage() {
       if (avatarUrl) {
         URL.revokeObjectURL(avatarUrl);
       }
-
-      lucyConnectionRef.current = null;
     };
   }, [recordedUrl, avatarUrl]);
 
@@ -251,9 +265,14 @@ export function AiObsPage() {
         audioTrack.enabled = micEnabled;
       }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+        await cameraVideoRef.current.play();
+      }
+
+      if (outputVideoRef.current) {
+        outputVideoRef.current.srcObject = stream;
+        await outputVideoRef.current.play().catch(() => {});
       }
 
       setCameraActive(true);
@@ -271,24 +290,33 @@ export function AiObsPage() {
       stopRecording();
     }
 
+    lucyMediaSessionRef.current?.close();
+    lucyMediaSessionRef.current = null;
+
     streamRef.current?.getTracks().forEach((track) => {
       track.stop();
     });
 
     streamRef.current = null;
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = null;
+    }
+
+    if (outputVideoRef.current) {
+      outputVideoRef.current.srcObject = null;
     }
 
     lucyConnectionRef.current = null;
-    setLucyConnected(false);
 
+    setLucyConnected(false);
+    setLucyBusy(false);
     setCameraActive(false);
   }
 
   function toggleMicrophone(): void {
-    const audioTrack = streamRef.current?.getAudioTracks()[0];
+    const audioTrack =
+      streamRef.current?.getAudioTracks()[0];
 
     if (!audioTrack) {
       return;
@@ -300,18 +328,42 @@ export function AiObsPage() {
     setMicEnabled(nextEnabled);
   }
 
+  function handleLucyResult(result: unknown): void {
+    const connection =
+      lucyConnectionRef.current as
+        | (ReturnType<typeof createLucyConnection> & {
+            __lucySignalHandler?: (
+              result: unknown,
+            ) => Promise<void>;
+          })
+        | null;
+
+    if (connection?.__lucySignalHandler) {
+      void connection.__lucySignalHandler(result);
+    }
+  }
+
   function startLucy(): void {
     setLucyError("");
 
-    if (!cameraActive) {
+    const inputStream = streamRef.current;
+    const outputVideo = outputVideoRef.current;
+
+    if (!inputStream || !cameraActive) {
       setLucyError(
         "Start the camera before connecting Lucy 2.5.",
       );
       return;
     }
 
+    if (!outputVideo) {
+      setLucyError(
+        "The AI output preview is not ready yet.",
+      );
+      return;
+    }
+
     if (lucyConnectionRef.current) {
-      setLucyConnected(true);
       return;
     }
 
@@ -320,12 +372,11 @@ export function AiObsPage() {
 
       const connection = createLucyConnection(
         (result) => {
-          console.log("Lucy 2.5 result:", result);
-          setLucyBusy(false);
-          setLucyConnected(true);
+          handleLucyResult(result);
         },
         (error) => {
           console.error("Lucy 2.5 error:", error);
+
           setLucyBusy(false);
           setLucyConnected(false);
           setLucyError(
@@ -336,19 +387,43 @@ export function AiObsPage() {
 
       lucyConnectionRef.current = connection;
 
+      const mediaSession = createLucyMediaSession(
+        connection,
+        inputStream,
+        outputVideo,
+        () => {
+          setLucyBusy(false);
+          setLucyConnected(true);
+        },
+        (error) => {
+          console.error(
+            "Lucy WebRTC media error:",
+            error,
+          );
+
+          setLucyBusy(false);
+          setLucyConnected(false);
+          setLucyError(
+            "Lucy 2.5 could not establish the video connection.",
+          );
+        },
+      );
+
+      lucyMediaSessionRef.current = mediaSession;
+
       connection.send({
         enable_prompt_expansion: true,
         prompt: prompt.trim() || undefined,
         reference_image_url:
           avatarUrl || undefined,
       });
-
-      setLucyConnected(true);
-      setLucyBusy(false);
     } catch (error) {
       console.error(error);
 
+      lucyMediaSessionRef.current?.close();
+      lucyMediaSessionRef.current = null;
       lucyConnectionRef.current = null;
+
       setLucyConnected(false);
       setLucyBusy(false);
 
@@ -377,9 +452,6 @@ export function AiObsPage() {
         reference_image_url:
           avatarUrl || undefined,
       });
-
-      setLucyBusy(false);
-      setLucyConnected(true);
     } catch (error) {
       console.error(error);
 
@@ -512,9 +584,7 @@ export function AiObsPage() {
     }
 
     if (!file.type.startsWith("image/")) {
-      setRecordingError(
-        "Please choose an image file.",
-      );
+      setRecordingError("Please choose an image file.");
       return;
     }
 
@@ -582,7 +652,7 @@ export function AiObsPage() {
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Front camera and microphone capture.
+                Real camera → Lucy 2.5 → AI output.
               </p>
             </div>
 
@@ -600,9 +670,7 @@ export function AiObsPage() {
                   <VideoOff size={13} />
                 )}
 
-                {cameraActive
-                  ? "Camera on"
-                  : "Camera off"}
+                {cameraActive ? "Camera on" : "Camera off"}
               </span>
 
               <span
@@ -638,61 +706,91 @@ export function AiObsPage() {
           </div>
 
           <div className="mx-auto mt-6 w-full max-w-[1100px]">
-            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className={`aspect-video w-full object-cover ${
-                  selectedLook === "aurora"
-                    ? "brightness-110 saturate-150 hue-rotate-15"
-                    : ""
-                }`}
-              />
+            <div className="grid gap-4 lg:grid-cols-[minmax(320px,1fr)_minmax(320px,1fr)]">
+              <div>
+                <p className="mb-2 text-[.68rem] font-bold uppercase tracking-[.12em] text-slate-500">
+                  Camera
+                </p>
 
-              {!cameraActive ? (
-                <div className="absolute inset-0 grid place-items-center bg-[#05070b]">
-                  <div className="text-center">
-                    <VideoOff
-                      size={30}
-                      className="mx-auto text-slate-600"
-                    />
-
-                    <p className="mt-3 text-sm font-semibold text-slate-400">
-                      Camera is off
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-600">
-                      Start the camera to begin your production.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {avatarUrl ? (
-                <div className="absolute bottom-4 right-4 overflow-hidden rounded-xl border-2 border-white/30 bg-black/30 shadow-xl backdrop-blur">
-                  <img
-                    src={avatarUrl}
-                    alt="Selected avatar"
-                    className="h-24 w-24 object-cover"
+                <div className="relative min-h-[320px] overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
+                  <video
+                    ref={cameraVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="aspect-video min-h-[320px] w-full object-cover"
                   />
-                </div>
-              ) : null}
 
-              {recording ? (
-                <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-rose-200">
-                  <span className="live-pulse size-2 rounded-full bg-rose-300" />
-                  REC {formatRecordingTime(recordingSeconds)}
-                </div>
-              ) : null}
+                  {!cameraActive ? (
+                    <div className="absolute inset-0 grid place-items-center bg-[#05070b]">
+                      <div className="text-center">
+                        <VideoOff
+                          size={30}
+                          className="mx-auto text-slate-600"
+                        />
 
-              {lucyBusy ? (
-                <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-violet-200">
+                        <p className="mt-3 text-sm font-semibold text-slate-400">
+                          Camera is off
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-600">
+                          Start the camera to begin.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 flex items-center gap-2 text-[.68rem] font-bold uppercase tracking-[.12em] text-violet-300">
                   <Sparkles size={13} />
-                  Processing AI
+                  Lucy 2.5 AI output
+                </p>
+
+                <div className="relative min-h-[320px] overflow-hidden rounded-2xl border border-violet-300/20 bg-black shadow-2xl">
+                  <video
+                    ref={outputVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="aspect-video min-h-[320px] w-full object-cover"
+                  />
+
+                  {!lucyConnected ? (
+                    <div className="absolute inset-0 grid place-items-center bg-[#05070b]/95">
+                      <div className="px-5 text-center">
+                        <Sparkles
+                          size={30}
+                          className="mx-auto text-violet-300/50"
+                        />
+
+                        <p className="mt-3 text-sm font-semibold text-slate-400">
+                          AI output waiting
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-slate-600">
+                          Start the camera, then connect Lucy 2.5.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {recording ? (
+                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-rose-200">
+                      <span className="live-pulse size-2 rounded-full bg-rose-300" />
+                      REC {formatRecordingTime(recordingSeconds)}
+                    </div>
+                  ) : null}
+
+                  {lucyBusy ? (
+                    <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-violet-200">
+                      <Sparkles size={13} />
+                      Processing AI
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              </div>
             </div>
           </div>
 
@@ -753,7 +851,7 @@ export function AiObsPage() {
               {micEnabled ? "Mute mic" : "Unmute mic"}
             </button>
 
-            {!lucyConnected ? (
+            {!lucyConnectionRef.current ? (
               <button
                 type="button"
                 onClick={startLucy}
@@ -846,14 +944,14 @@ export function AiObsPage() {
 
             <WorkflowStep
               number="02"
-              title="Transform"
-              text="Send your prompt and reference image to Lucy 2.5."
+              title="Lucy 2.5"
+              text="Send the camera stream through the realtime AI transformation."
             />
 
             <WorkflowStep
               number="03"
-              title="Record"
-              text="Record the production and save it."
+              title="OBS"
+              text="Use the transformed production output for your broadcast."
             />
           </div>
         </div>
