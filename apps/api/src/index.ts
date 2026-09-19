@@ -1,14 +1,10 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 
 import router from "./routes/index";
 
 const app = express();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 app.use(
   cors({
@@ -27,8 +23,8 @@ app.get("/health", (_req, res) => {
 
 app.use("/api", router);
 
-// Serve the built frontend from the project root.
-const frontendDist = path.resolve(__dirname, "../../../dist");
+// Serve the built frontend.
+const frontendDist = path.resolve(process.cwd(), "dist");
 
 app.use(express.static(frontendDist));
 
