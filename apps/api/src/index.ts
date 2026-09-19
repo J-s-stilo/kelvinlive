@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import { clerkMiddleware } from "@clerk/express";
 
 import router from "./routes/index";
 
@@ -14,6 +15,10 @@ app.use(
 );
 
 app.use(express.json({ limit: "20mb" }));
+
+// Clerk authentication middleware.
+// This must run before protected API routes.
+app.use(clerkMiddleware());
 
 app.get("/health", (_req, res) => {
   res.json({
