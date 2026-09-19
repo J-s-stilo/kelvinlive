@@ -1,7 +1,6 @@
 import {
   ArrowRight,
   BarChart3,
-  CheckCircle2,
   Copy,
   Download,
   FileText,
@@ -21,6 +20,7 @@ import {
   VideoOff,
 } from "lucide-react";
 import {
+  type ChangeEvent,
   type ReactNode,
   useEffect,
   useRef,
@@ -397,7 +397,7 @@ export function AiObsPage() {
   }
 
   function handleAvatarChange(
-    event: React.ChangeEvent<HTMLInputElement>,
+    event: ChangeEvent<HTMLInputElement>,
   ): void {
     const file = event.target.files?.[0];
 
@@ -994,8 +994,6 @@ export function AnalyticsPage() {
 }
 
 export function CreditsPage() {
-  const [notice, setNotice] = useState("");
-
   const creditRows = [
     ["AI looks", "Coming soon", "AI usage billing will connect here."],
     ["Natural camera", "Free", "Your camera preview does not use credits."],
@@ -1031,15 +1029,6 @@ export function CreditsPage() {
             <Plus size={16} />
             Credit system coming soon
           </button>
-
-          {notice ? (
-            <p
-              className="mt-3 text-xs text-cyan-200"
-              data-testid="status-credit-notice"
-            >
-              {notice}
-            </p>
-          ) : null}
         </div>
 
         <div className="panel rounded-2xl p-7">
