@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import {
   type ReactNode,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -24,9 +26,7 @@ import {
 } from "@/lib/content";
 
 export function FeedPage() {
-  const [following, setFollowing] = useState<number[]>(
-    [],
-  );
+  const [following, setFollowing] = useState<number[]>([]);
 
   const creators = [
     {
@@ -103,9 +103,7 @@ export function FeedPage() {
             </div>
 
             <div className="p-5">
-              <h2 className="font-bold">
-                {creator.name}
-              </h2>
+              <h2 className="font-bold">{creator.name}</h2>
 
               <p className="mt-1 text-sm text-slate-400">
                 {creator.note}
@@ -141,32 +139,95 @@ export function FeedPage() {
 }
 
 export function AiObsPage() {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [cameraActive, setCameraActive] = useState(false);
+  const [selectedLook, setSelectedLook] = useState<
+    "natural" | "aurora"
+  >("natural");
   const [copied, setCopied] = useState(false);
+  const [cameraError, setCameraError] = useState("");
 
-  function copySource(): void {
-    setCopied(true);
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+    };
+  }, []);
 
-    window.setTimeout(() => {
-      setCopied(false);
-    }, 1600);
+  async function startCamera(): Promise<void> {
+    setCameraError("");
+
+    try {
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraActive(true);
+    } catch (error) {
+      console.error(error);
+      setCameraError(
+        "Camera access was blocked. Please allow camera and microphone access in your browser.",
+      );
+    }
+  }
+
+  function stopCamera(): void {
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
+
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraActive(false);
+  }
+
+  async function copySource(): Promise<void> {
+    const sourceUrl = `${window.location.origin}/source`;
+
+    try {
+      await navigator.clipboard.writeText(sourceUrl);
+      setCopied(true);
+
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 1600);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   return (
     <PageIntro
       eyebrow="Production workflow"
       title="AI, then anywhere."
-      description="Shape your scene here, then hand it to the tools that help you do your best work."
+      description="Start your real camera, choose a visual treatment, and prepare the scene for your broadcast."
     >
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <div className="panel rounded-2xl p-6 sm:p-8">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-bold">
-                Private Browser Source
+                Camera preview
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Only you can access this source.
+                Your camera stays in your browser until you choose to go live.
               </p>
             </div>
 
@@ -176,19 +237,63 @@ export function AiObsPage() {
             />
           </div>
 
-          <div className="mt-7 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-            <code className="truncate font-mono text-xs text-cyan-100">
-              lumalive.tv/source/ari-mendez-7f2
-            </code>
+          <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-black">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`aspect-video w-full object-cover ${
+                selectedLook === "aurora"
+                  ? "brightness-110 saturate-150 hue-rotate-15"
+                  : ""
+              }`}
+            />
+
+            {!cameraActive ? (
+              <div className="grid aspect-video -mt-[56.25%] place-items-center pointer-events-none">
+                <div className="rounded-xl bg-black/60 px-5 py-3 text-sm text-slate-400">
+                  Camera is off
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {cameraError ? (
+            <p className="mt-3 rounded-xl border border-rose-300/20 bg-rose-300/[.05] p-3 text-xs text-rose-200">
+              {cameraError}
+            </p>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            {!cameraActive ? (
+              <button
+                type="button"
+                onClick={startCamera}
+                className="btn-primary rounded-xl px-4 py-3 text-sm font-bold"
+                data-testid="button-start-camera"
+              >
+                Start camera
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="rounded-xl border border-rose-300/20 bg-rose-300/[.05] px-4 py-3 text-sm font-semibold text-rose-200"
+                data-testid="button-stop-camera"
+              >
+                Stop camera
+              </button>
+            )}
 
             <button
               type="button"
               onClick={copySource}
-              className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"
-              aria-label="Copy browser source"
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold hover:bg-white/[.08]"
               data-testid="button-copy-browser-source"
             >
               <Copy size={16} />
+              Copy Browser Source
             </button>
           </div>
 
@@ -197,27 +302,27 @@ export function AiObsPage() {
               className="mt-3 text-xs text-cyan-200"
               data-testid="status-source-copied"
             >
-              Source copied to clipboard.
+              Browser Source URL copied.
             </p>
           ) : null}
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
             <WorkflowStep
               number="01"
-              title="Select your look"
-              text="Natural or Aurora"
+              title="Camera"
+              text="Start your real camera."
             />
 
             <WorkflowStep
               number="02"
-              title="Add to OBS"
-              text="Browser Source · 1280×720"
+              title="AI look"
+              text="Choose your visual treatment."
             />
 
             <WorkflowStep
               number="03"
-              title="Go live"
-              text="Publish from your production tool"
+              title="Broadcast"
+              text="Send the finished scene to OBS."
             />
           </div>
         </div>
@@ -226,22 +331,67 @@ export function AiObsPage() {
           <Sparkles className="text-violet-300" />
 
           <h2 className="mt-6 text-2xl font-bold">
-            AI looks, with a clear line.
+            AI transformation
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Use AI as a creative layer, never as a way to mislead. Every look
-            is labeled in your studio preview.
+            Choose a visual treatment. Natural keeps your camera unchanged.
+            Aurora applies the first live visual treatment to the preview.
           </p>
 
-          <button
-            type="button"
-            className="mt-7 flex items-center gap-2 rounded-xl border border-violet-300/25 bg-violet-300/[.08] px-4 py-3 text-sm font-bold text-violet-100"
-            data-testid="button-browse-ai-looks"
-          >
-            Browse looks
-            <ArrowRight size={16} />
-          </button>
+          <div className="mt-6 grid gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedLook("natural")}
+              className={`rounded-xl border p-4 text-left transition ${
+                selectedLook === "natural"
+                  ? "border-cyan-300/50 bg-cyan-300/[.10]"
+                  : "border-white/10 bg-white/[.02]"
+              }`}
+              data-testid="button-ai-look-natural"
+            >
+              <p className="font-bold">Natural</p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Keep your camera appearance unchanged.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedLook("aurora")}
+              className={`rounded-xl border p-4 text-left transition ${
+                selectedLook === "aurora"
+                  ? "border-violet-300/50 bg-violet-300/[.10]"
+                  : "border-white/10 bg-white/[.02]"
+              }`}
+              data-testid="button-ai-look-aurora"
+            >
+              <p className="font-bold">Aurora</p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Apply the Aurora visual treatment to the live preview.
+              </p>
+            </button>
+          </div>
+
+          <div className="mt-7 rounded-xl border border-white/10 bg-black/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-slate-500">
+              Current look
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-cyan-200">
+              {selectedLook === "natural"
+                ? "Natural"
+                : "Aurora"}
+            </p>
+
+            <p className="mt-1 text-xs text-slate-500">
+              {cameraActive
+                ? "Your camera is active."
+                : "Start your camera to see the live preview."}
+            </p>
+          </div>
         </div>
       </div>
     </PageIntro>
@@ -268,9 +418,7 @@ export function AnalyticsPage() {
             key={label}
             data-testid={`metric-analytics-${index}`}
           >
-            <p className="text-sm text-slate-500">
-              {label}
-            </p>
+            <p className="text-sm text-slate-500">{label}</p>
 
             <p className="mt-3 font-mono text-2xl text-slate-100">
               {value}
@@ -287,9 +435,7 @@ export function AnalyticsPage() {
       <div className="panel mt-5 rounded-2xl p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="font-bold">
-              Audience minutes
-            </h2>
+            <h2 className="font-bold">Audience minutes</h2>
 
             <p className="mt-1 text-xs text-slate-500">
               Last 12 sessions
@@ -323,9 +469,7 @@ export function AnalyticsPage() {
       </div>
 
       <div className="panel mt-5 rounded-2xl p-6">
-        <h2 className="font-bold">
-          Recent sessions
-        </h2>
+        <h2 className="font-bold">Recent sessions</h2>
 
         <div className="mt-4 divide-y divide-white/10">
           {activity.map((item) => (
@@ -368,21 +512,9 @@ export function CreditsPage() {
   const [notice, setNotice] = useState("");
 
   const creditRows = [
-    [
-      "AI looks",
-      "4 cr / minute",
-      "Switch visual identity while live.",
-    ],
-    [
-      "Natural camera",
-      "Free",
-      "Your camera stream stays free for viewers.",
-    ],
-    [
-      "Preview & rehearsal",
-      "Free",
-      "Take your time before the room opens.",
-    ],
+    ["AI looks", "4 cr / minute", "Switch visual identity while live."],
+    ["Natural camera", "Free", "Your camera stream stays free for viewers."],
+    ["Preview & rehearsal", "Free", "Take your time before the room opens."],
   ];
 
   return (
@@ -393,9 +525,7 @@ export function CreditsPage() {
     >
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <div className="panel hero-radial rounded-2xl p-7">
-          <p className="text-sm text-slate-400">
-            Available balance
-          </p>
+          <p className="text-sm text-slate-400">Available balance</p>
 
           <p className="mt-4 font-mono text-6xl text-cyan-200">
             18
@@ -430,39 +560,33 @@ export function CreditsPage() {
         </div>
 
         <div className="panel rounded-2xl p-7">
-          <h2 className="font-bold">
-            What uses credits?
-          </h2>
+          <h2 className="font-bold">What uses credits?</h2>
 
           <div className="mt-5 space-y-4">
-            {creditRows.map(
-              ([name, cost, detail], index) => (
-                <div
-                  className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/[.02] p-4"
-                  key={name}
-                  data-testid={`row-credit-${index}`}
-                >
-                  <Sparkles
-                    size={17}
-                    className="mt-0.5 text-violet-300"
-                  />
+            {creditRows.map(([name, cost, detail], index) => (
+              <div
+                className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/[.02] p-4"
+                key={name}
+                data-testid={`row-credit-${index}`}
+              >
+                <Sparkles
+                  size={17}
+                  className="mt-0.5 text-violet-300"
+                />
 
-                  <div className="flex-1">
-                    <p className="text-sm font-bold">
-                      {name}
-                    </p>
+                <div className="flex-1">
+                  <p className="text-sm font-bold">{name}</p>
 
-                    <p className="mt-1 text-xs text-slate-500">
-                      {detail}
-                    </p>
-                  </div>
-
-                  <span className="font-mono text-xs text-cyan-200">
-                    {cost}
-                  </span>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {detail}
+                  </p>
                 </div>
-              ),
-            )}
+
+                <span className="font-mono text-xs text-cyan-200">
+                  {cost}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -491,21 +615,10 @@ export function TransactionsPage() {
         <table className="w-full min-w-[620px] text-left text-sm">
           <thead className="border-b border-white/10 text-xs uppercase tracking-[.13em] text-slate-500">
             <tr>
-              <th className="px-6 py-4 font-medium">
-                Date
-              </th>
-
-              <th className="px-6 py-4 font-medium">
-                Activity
-              </th>
-
-              <th className="px-6 py-4 font-medium">
-                Amount
-              </th>
-
-              <th className="px-6 py-4 font-medium">
-                Status
-              </th>
+              <th className="px-6 py-4 font-medium">Date</th>
+              <th className="px-6 py-4 font-medium">Activity</th>
+              <th className="px-6 py-4 font-medium">Amount</th>
+              <th className="px-6 py-4 font-medium">Status</th>
             </tr>
           </thead>
 
@@ -544,24 +657,9 @@ export function TransactionsPage() {
 
 export function TutorialPage() {
   const lessons = [
-    [
-      "01",
-      "Your first private preview",
-      "Learn the studio controls before the room opens.",
-      "4 min",
-    ],
-    [
-      "02",
-      "A thoughtful AI workflow",
-      "Use a look as a creative choice, not a disguise.",
-      "7 min",
-    ],
-    [
-      "03",
-      "Bring LumaLive into OBS",
-      "Add your private Browser Source in three steps.",
-      "5 min",
-    ],
+    ["01", "Your first private preview", "Learn the studio controls before the room opens.", "4 min"],
+    ["02", "A thoughtful AI workflow", "Use a look as a creative choice, not a disguise.", "7 min"],
+    ["03", "Bring LumaLive into OBS", "Add your private Browser Source in three steps.", "5 min"],
   ];
 
   return (
@@ -571,43 +669,39 @@ export function TutorialPage() {
       description="Short guides for making the technical part feel unremarkable."
     >
       <div className="space-y-3">
-        {lessons.map(
-          ([number, title, text, duration]) => (
-            <button
-              type="button"
-              className="panel group flex w-full items-center gap-5 rounded-2xl p-5 text-left hover:border-cyan-300/30"
-              key={number}
-              data-testid={`button-tutorial-${number}`}
-            >
-              <span className="font-mono text-sm text-cyan-300">
-                {number}
+        {lessons.map(([number, title, text, duration]) => (
+          <button
+            type="button"
+            className="panel group flex w-full items-center gap-5 rounded-2xl p-5 text-left hover:border-cyan-300/30"
+            key={number}
+            data-testid={`button-tutorial-${number}`}
+          >
+            <span className="font-mono text-sm text-cyan-300">
+              {number}
+            </span>
+
+            <span className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-slate-300">
+              <PlayCircle size={20} />
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">{title}</span>
+
+              <span className="mt-1 block truncate text-sm text-slate-500">
+                {text}
               </span>
+            </span>
 
-              <span className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-slate-300">
-                <PlayCircle size={20} />
-              </span>
+            <span className="hidden text-xs text-slate-500 sm:block">
+              {duration}
+            </span>
 
-              <span className="min-w-0 flex-1">
-                <span className="block font-bold">
-                  {title}
-                </span>
-
-                <span className="mt-1 block truncate text-sm text-slate-500">
-                  {text}
-                </span>
-              </span>
-
-              <span className="hidden text-xs text-slate-500 sm:block">
-                {duration}
-              </span>
-
-              <ArrowRight
-                size={17}
-                className="text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300"
-              />
-            </button>
-          ),
-        )}
+            <ArrowRight
+              size={17}
+              className="text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300"
+            />
+          </button>
+        ))}
       </div>
     </PageIntro>
   );
@@ -638,9 +732,7 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <p className="font-bold">
-                Ari Mendez
-              </p>
+              <p className="font-bold">Ari Mendez</p>
 
               <p className="text-sm text-slate-500">
                 ari@lumalive.example
@@ -650,9 +742,7 @@ export function SettingsPage() {
 
           <div className="mt-8 space-y-2 text-sm">
             <div className="flex items-center justify-between rounded-xl bg-white/[.03] p-3">
-              <span className="text-slate-400">
-                Plan
-              </span>
+              <span className="text-slate-400">Plan</span>
 
               <span className="font-semibold text-cyan-200">
                 Creator
@@ -660,21 +750,15 @@ export function SettingsPage() {
             </div>
 
             <div className="flex items-center justify-between rounded-xl bg-white/[.03] p-3">
-              <span className="text-slate-400">
-                Member since
-              </span>
+              <span className="text-slate-400">Member since</span>
 
-              <span>
-                September 2026
-              </span>
+              <span>September 2026</span>
             </div>
           </div>
         </div>
 
         <div className="panel rounded-2xl p-6">
-          <h2 className="font-bold">
-            Studio defaults
-          </h2>
+          <h2 className="font-bold">Studio defaults</h2>
 
           <div className="mt-6 space-y-5">
             <label className="flex items-center justify-between gap-4">
@@ -763,15 +847,11 @@ function PageIntro({
   return (
     <div
       className="space-y-8"
-      data-testid={`page-${title
-        .toLowerCase()
-        .replaceAll(" ", "-")}`}
+      data-testid={`page-${title.toLowerCase().replaceAll(" ", "-")}`}
     >
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="eyebrow">
-            {eyebrow}
-          </p>
+          <p className="eyebrow">{eyebrow}</p>
 
           <h1 className="mt-3 text-3xl font-extrabold tracking-[-.05em] sm:text-4xl">
             {title}
@@ -807,13 +887,9 @@ function WorkflowStep({
         {number}
       </span>
 
-      <p className="mt-5 text-sm font-bold">
-        {title}
-      </p>
+      <p className="mt-5 text-sm font-bold">{title}</p>
 
-      <p className="mt-1 text-xs text-slate-500">
-        {text}
-      </p>
+      <p className="mt-1 text-xs text-slate-500">{text}</p>
     </div>
   );
 }
