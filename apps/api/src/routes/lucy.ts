@@ -36,7 +36,7 @@ router.post(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            app,
+            app: app.trim(),
           }),
         },
       );
@@ -44,14 +44,17 @@ router.post(
       if (!response.ok) {
         const errorText = await response.text();
 
+        console.error("fal token request failed:", errorText);
+
         res.status(502).json({
           error: "Unable to create the fal realtime token.",
-          details: errorText,
         });
         return;
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        token?: string;
+      };
 
       if (!data.token) {
         res.status(502).json({
