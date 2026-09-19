@@ -14,6 +14,7 @@
     "start": "node apps/api/dist/index.js"
   },
   "dependencies": {
+    "@clerk/express": "^1.7.0",
     "@clerk/react": "^6.9.1",
     "@fal-ai/client": "^1.5.0",
     "@tanstack/react-query": "^5.66.8",
