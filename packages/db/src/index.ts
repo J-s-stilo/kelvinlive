@@ -4,7 +4,7 @@ import { Pool } from "pg";
 import {
   creatorProfilesTable,
   streamSessionsTable,
-} from "./schema";
+} from "./schema.js";
 
 const connectionString = process.env.DATABASE_URL;
 
