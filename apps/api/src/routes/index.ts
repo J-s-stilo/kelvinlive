@@ -8,6 +8,6 @@ const router: IRouter = Router();
 
 router.use("/creator", creatorRouter);
 router.use("/ai", aiRouter);
-router.use("/lucy", lucyRouter);
+router.use("/fal", lucyRouter);
 
 export default router;
