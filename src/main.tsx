@@ -24,3 +24,4 @@ createRoot(rootElement).render(
     </ErrorBoundary>
   </ClerkProvider>,
 );
+
