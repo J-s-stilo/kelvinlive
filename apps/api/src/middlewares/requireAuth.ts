@@ -1,11 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 
 export function requireAuth(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): void {
-  const userId = res.locals.userId;
+  const userId = req.header("x-clerk-user-id");
 
   if (!userId) {
     res.status(401).json({
@@ -13,6 +13,8 @@ export function requireAuth(
     });
     return;
   }
+
+  res.locals.userId = userId;
 
   next();
 }
