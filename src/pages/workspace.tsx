@@ -3,14 +3,22 @@ import {
   BarChart3,
   CheckCircle2,
   Copy,
+  Download,
   FileText,
+  ImagePlus,
   KeyRound,
+  Mic,
+  MicOff,
   PlayCircle,
   Plus,
   RefreshCw,
   Save,
   Sparkles,
+  Square,
   TrendingUp,
+  Upload,
+  Video,
+  VideoOff,
 } from "lucide-react";
 import {
   type ReactNode,
@@ -141,33 +149,94 @@ export function FeedPage() {
 export function AiObsPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [cameraActive, setCameraActive] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [recording, setRecording] = useState(false);
   const [selectedLook, setSelectedLook] = useState<
     "natural" | "aurora"
   >("natural");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [recordedUrl, setRecordedUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [recordingError, setRecordingError] = useState("");
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => {
         track.stop();
       });
+
+      if (recordedUrl) {
+        URL.revokeObjectURL(recordedUrl);
+      }
+
+      if (avatarUrl) {
+        URL.revokeObjectURL(avatarUrl);
+      }
     };
-  }, []);
+  }, [recordedUrl, avatarUrl]);
+
+  useEffect(() => {
+    if (!recording) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setRecordingSeconds((seconds) => seconds + 1);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [recording]);
+
+  function formatRecordingTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(
+      remainingSeconds,
+    ).padStart(2, "0")}`;
+  }
 
   async function startCamera(): Promise<void> {
     setCameraError("");
 
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError(
+        "Camera access is not available in this browser.",
+      );
+      return;
+    }
+
     try {
       const stream =
         await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: {
+            facingMode: "user",
+            width: {
+              ideal: 1280,
+            },
+            height: {
+              ideal: 720,
+            },
+          },
           audio: true,
         });
 
       streamRef.current = stream;
+
+      const audioTrack = stream.getAudioTracks()[0];
+
+      if (audioTrack) {
+        audioTrack.enabled = micEnabled;
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -177,13 +246,18 @@ export function AiObsPage() {
       setCameraActive(true);
     } catch (error) {
       console.error(error);
+
       setCameraError(
-        "Camera access was blocked. Please allow camera and microphone access in your browser.",
+        "Camera or microphone access was blocked. Check your browser permissions and try again.",
       );
     }
   }
 
   function stopCamera(): void {
+    if (recording) {
+      stopRecording();
+    }
+
     streamRef.current?.getTracks().forEach((track) => {
       track.stop();
     });
@@ -195,6 +269,169 @@ export function AiObsPage() {
     }
 
     setCameraActive(false);
+  }
+
+  function toggleMicrophone(): void {
+    const audioTrack = streamRef.current?.getAudioTracks()[0];
+
+    if (!audioTrack) {
+      return;
+    }
+
+    const nextEnabled = !audioTrack.enabled;
+
+    audioTrack.enabled = nextEnabled;
+    setMicEnabled(nextEnabled);
+  }
+
+  function startRecording(): void {
+    setRecordingError("");
+
+    if (!streamRef.current) {
+      setRecordingError(
+        "Start the camera before starting a recording.",
+      );
+      return;
+    }
+
+    if (!window.MediaRecorder) {
+      setRecordingError(
+        "Recording is not supported by this browser.",
+      );
+      return;
+    }
+
+    try {
+      recordedChunksRef.current = [];
+
+      let mimeType = "";
+
+      if (
+        MediaRecorder.isTypeSupported(
+          "video/webm;codecs=vp9,opus",
+        )
+      ) {
+        mimeType = "video/webm;codecs=vp9,opus";
+      } else if (
+        MediaRecorder.isTypeSupported(
+          "video/webm;codecs=vp8,opus",
+        )
+      ) {
+        mimeType = "video/webm;codecs=vp8,opus";
+      } else if (
+        MediaRecorder.isTypeSupported("video/webm")
+      ) {
+        mimeType = "video/webm";
+      }
+
+      const recorder = mimeType
+        ? new MediaRecorder(streamRef.current, {
+            mimeType,
+          })
+        : new MediaRecorder(streamRef.current);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = (event) => {
+        console.error(event);
+
+        setRecordingError(
+          "The recording could not be completed.",
+        );
+
+        setRecording(false);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, {
+          type: recorder.mimeType || "video/webm",
+        });
+
+        if (blob.size === 0) {
+          setRecordingError(
+            "No recording data was captured.",
+          );
+          return;
+        }
+
+        if (recordedUrl) {
+          URL.revokeObjectURL(recordedUrl);
+        }
+
+        const url = URL.createObjectURL(blob);
+
+        setRecordedUrl(url);
+      };
+
+      recorderRef.current = recorder;
+      recorder.start(250);
+
+      setRecordingSeconds(0);
+      setRecording(true);
+    } catch (error) {
+      console.error(error);
+
+      setRecordingError(
+        "The browser could not start recording.",
+      );
+    }
+  }
+
+  function stopRecording(): void {
+    const recorder = recorderRef.current;
+
+    if (!recorder) {
+      return;
+    }
+
+    if (recorder.state !== "inactive") {
+      recorder.stop();
+    }
+
+    recorderRef.current = null;
+    setRecording(false);
+  }
+
+  function handleAvatarChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setRecordingError(
+        "Please choose an image file.",
+      );
+      return;
+    }
+
+    if (avatarUrl) {
+      URL.revokeObjectURL(avatarUrl);
+    }
+
+    const url = URL.createObjectURL(file);
+
+    setAvatarUrl(url);
+    setRecordingError("");
+  }
+
+  function removeAvatar(): void {
+    if (avatarUrl) {
+      URL.revokeObjectURL(avatarUrl);
+    }
+
+    setAvatarUrl("");
+
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = "";
+    }
   }
 
   async function copySource(): Promise<void> {
@@ -212,51 +449,124 @@ export function AiObsPage() {
     }
   }
 
+  function saveRecording(): void {
+    if (!recordedUrl) {
+      return;
+    }
+
+    const anchor = document.createElement("a");
+
+    anchor.href = recordedUrl;
+    anchor.download = `lumalive-recording-${Date.now()}.webm`;
+    anchor.click();
+  }
+
   return (
     <PageIntro
       eyebrow="Production workflow"
       title="AI, then anywhere."
-      description="Start your real camera, choose a visual treatment, and prepare the scene for your broadcast."
+      description="Prepare your camera, avatar and visual treatment before sending the finished scene to OBS."
     >
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
-        <div className="panel rounded-2xl p-6 sm:p-8">
-          <div className="flex items-center justify-between">
+      <div className="grid gap-5 xl:grid-cols-[minmax(360px,1fr)_360px]">
+        <div className="panel rounded-2xl p-5 sm:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm font-bold">
-                Camera preview
+                Production preview
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Your camera stays in your browser until you choose to go live.
+                Front camera and microphone capture.
               </p>
             </div>
 
-            <KeyRound
-              size={20}
-              className="text-cyan-300"
-            />
+            <div className="flex items-center gap-2">
+              <span
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[.68rem] font-bold ${
+                  cameraActive
+                    ? "border-emerald-300/20 bg-emerald-300/[.06] text-emerald-200"
+                    : "border-white/10 bg-white/[.03] text-slate-500"
+                }`}
+              >
+                {cameraActive ? (
+                  <Video size={13} />
+                ) : (
+                  <VideoOff size={13} />
+                )}
+
+                {cameraActive
+                  ? "Camera on"
+                  : "Camera off"}
+              </span>
+
+              <span
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[.68rem] font-bold ${
+                  cameraActive && micEnabled
+                    ? "border-cyan-300/20 bg-cyan-300/[.06] text-cyan-200"
+                    : "border-white/10 bg-white/[.03] text-slate-500"
+                }`}
+              >
+                {micEnabled ? (
+                  <Mic size={13} />
+                ) : (
+                  <MicOff size={13} />
+                )}
+
+                {micEnabled ? "Mic on" : "Mic off"}
+              </span>
+            </div>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-black">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className={`aspect-video w-full object-cover ${
-                selectedLook === "aurora"
-                  ? "brightness-110 saturate-150 hue-rotate-15"
-                  : ""
-              }`}
-            />
+          <div className="mx-auto mt-6 w-full max-w-[720px]">
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className={`aspect-video w-full object-cover ${
+                  selectedLook === "aurora"
+                    ? "brightness-110 saturate-150 hue-rotate-15"
+                    : ""
+                }`}
+              />
 
-            {!cameraActive ? (
-              <div className="grid aspect-video -mt-[56.25%] place-items-center pointer-events-none">
-                <div className="rounded-xl bg-black/60 px-5 py-3 text-sm text-slate-400">
-                  Camera is off
+              {!cameraActive ? (
+                <div className="absolute inset-0 grid place-items-center bg-[#05070b]">
+                  <div className="text-center">
+                    <VideoOff
+                      size={30}
+                      className="mx-auto text-slate-600"
+                    />
+
+                    <p className="mt-3 text-sm font-semibold text-slate-400">
+                      Camera is off
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-600">
+                      Start the camera to begin your production.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+
+              {avatarUrl ? (
+                <div className="absolute bottom-4 right-4 overflow-hidden rounded-xl border-2 border-white/30 bg-black/30 shadow-xl backdrop-blur">
+                  <img
+                    src={avatarUrl}
+                    alt="Selected avatar"
+                    className="h-24 w-24 object-cover"
+                  />
+                </div>
+              ) : null}
+
+              {recording ? (
+                <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-rose-200">
+                  <span className="live-pulse size-2 rounded-full bg-rose-300" />
+                  REC {formatRecordingTime(recordingSeconds)}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {cameraError ? (
@@ -265,132 +575,307 @@ export function AiObsPage() {
             </p>
           ) : null}
 
+          {recordingError ? (
+            <p className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05] p-3 text-xs text-amber-200">
+              {recordingError}
+            </p>
+          ) : null}
+
           <div className="mt-5 flex flex-wrap gap-3">
             {!cameraActive ? (
               <button
                 type="button"
                 onClick={startCamera}
-                className="btn-primary rounded-xl px-4 py-3 text-sm font-bold"
+                className="btn-primary flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
                 data-testid="button-start-camera"
               >
+                <Video size={16} />
                 Start camera
               </button>
             ) : (
               <button
                 type="button"
                 onClick={stopCamera}
-                className="rounded-xl border border-rose-300/20 bg-rose-300/[.05] px-4 py-3 text-sm font-semibold text-rose-200"
+                className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/[.05] px-4 py-3 text-sm font-semibold text-rose-200"
                 data-testid="button-stop-camera"
               >
+                <VideoOff size={16} />
                 Stop camera
               </button>
             )}
 
             <button
               type="button"
-              onClick={copySource}
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold hover:bg-white/[.08]"
-              data-testid="button-copy-browser-source"
+              onClick={toggleMicrophone}
+              disabled={!cameraActive}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold hover:bg-white/[.08] disabled:cursor-not-allowed disabled:opacity-40"
+              data-testid="button-toggle-microphone"
             >
-              <Copy size={16} />
-              Copy Browser Source
+              {micEnabled ? (
+                <Mic size={16} />
+              ) : (
+                <MicOff size={16} />
+              )}
+
+              {micEnabled ? "Mute mic" : "Unmute mic"}
             </button>
+
+            {!recording ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={!cameraActive}
+                className="flex items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-4 py-3 text-sm font-bold text-rose-200 hover:bg-rose-300/[.12] disabled:cursor-not-allowed disabled:opacity-40"
+                data-testid="button-start-recording"
+              >
+                <span className="size-2.5 rounded-full bg-rose-300" />
+                Record
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="flex items-center gap-2 rounded-xl border border-rose-300/30 bg-rose-300/[.12] px-4 py-3 text-sm font-bold text-rose-200"
+                data-testid="button-stop-recording"
+              >
+                <Square size={15} />
+                Stop recording
+              </button>
+            )}
           </div>
 
-          {copied ? (
-            <p
-              className="mt-3 text-xs text-cyan-200"
-              data-testid="status-source-copied"
-            >
-              Browser Source URL copied.
-            </p>
+          {recordedUrl ? (
+            <div className="mt-6 rounded-2xl border border-cyan-300/20 bg-cyan-300/[.04] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold">
+                    Recording ready
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Preview it or save the WebM file.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <a
+                    href={recordedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[.04] px-3 py-2 text-xs font-semibold hover:bg-white/[.08]"
+                    data-testid="button-preview-recording"
+                  >
+                    <PlayCircle size={14} />
+                    Preview
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={saveRecording}
+                    className="btn-primary flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold"
+                    data-testid="button-save-recording"
+                  >
+                    <Download size={14} />
+                    Save
+                  </button>
+                </div>
+              </div>
+
+              <video
+                src={recordedUrl}
+                controls
+                className="mt-4 aspect-video w-full rounded-xl bg-black"
+              />
+            </div>
           ) : null}
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
             <WorkflowStep
               number="01"
               title="Camera"
-              text="Start your real camera."
+              text="Capture your real camera and microphone."
             />
 
             <WorkflowStep
               number="02"
-              title="AI look"
-              text="Choose your visual treatment."
+              title="Transform"
+              text="Choose your avatar and visual treatment."
             />
 
             <WorkflowStep
               number="03"
-              title="Broadcast"
-              text="Send the finished scene to OBS."
+              title="Record"
+              text="Record the production and save it."
             />
           </div>
         </div>
 
-        <div className="rounded-2xl border border-violet-300/20 bg-violet-300/[.05] p-6 sm:p-8">
-          <Sparkles className="text-violet-300" />
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-violet-300/20 bg-violet-300/[.05] p-5 sm:p-6">
+            <Sparkles className="text-violet-300" />
 
-          <h2 className="mt-6 text-2xl font-bold">
-            AI transformation
-          </h2>
+            <h2 className="mt-5 text-xl font-bold">
+              AI transformation
+            </h2>
 
-          <p className="mt-3 text-sm leading-6 text-slate-400">
-            Choose a visual treatment. Natural keeps your camera unchanged.
-            Aurora applies the first live visual treatment to the preview.
-          </p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Choose the visual treatment for your production preview.
+            </p>
 
-          <div className="mt-6 grid gap-3">
-            <button
-              type="button"
-              onClick={() => setSelectedLook("natural")}
-              className={`rounded-xl border p-4 text-left transition ${
-                selectedLook === "natural"
-                  ? "border-cyan-300/50 bg-cyan-300/[.10]"
-                  : "border-white/10 bg-white/[.02]"
-              }`}
-              data-testid="button-ai-look-natural"
-            >
-              <p className="font-bold">Natural</p>
+            <div className="mt-5 grid gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedLook("natural")}
+                className={`rounded-xl border p-4 text-left transition ${
+                  selectedLook === "natural"
+                    ? "border-cyan-300/50 bg-cyan-300/[.10]"
+                    : "border-white/10 bg-white/[.02]"
+                }`}
+                data-testid="button-ai-look-natural"
+              >
+                <p className="font-bold">Natural</p>
 
-              <p className="mt-1 text-xs text-slate-500">
-                Keep your camera appearance unchanged.
+                <p className="mt-1 text-xs text-slate-500">
+                  Keep the camera appearance unchanged.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedLook("aurora")}
+                className={`rounded-xl border p-4 text-left transition ${
+                  selectedLook === "aurora"
+                    ? "border-violet-300/50 bg-violet-300/[.10]"
+                    : "border-white/10 bg-white/[.02]"
+                }`}
+                data-testid="button-ai-look-aurora"
+              >
+                <p className="font-bold">Aurora</p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Apply the Aurora preview treatment.
+                </p>
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[.12em] text-slate-500">
+                Current look
               </p>
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setSelectedLook("aurora")}
-              className={`rounded-xl border p-4 text-left transition ${
-                selectedLook === "aurora"
-                  ? "border-violet-300/50 bg-violet-300/[.10]"
-                  : "border-white/10 bg-white/[.02]"
-              }`}
-              data-testid="button-ai-look-aurora"
-            >
-              <p className="font-bold">Aurora</p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Apply the Aurora visual treatment to the live preview.
+              <p className="mt-2 text-sm font-bold text-cyan-200">
+                {selectedLook === "natural"
+                  ? "Natural"
+                  : "Aurora"}
               </p>
-            </button>
+            </div>
           </div>
 
-          <div className="mt-7 rounded-xl border border-white/10 bg-black/20 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[.12em] text-slate-500">
-              Current look
-            </p>
+          <div className="panel rounded-2xl p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold">
+                  Avatar / image
+                </p>
 
-            <p className="mt-2 text-sm font-bold text-cyan-200">
-              {selectedLook === "natural"
-                ? "Natural"
-                : "Aurora"}
-            </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Add an image for the production preview.
+                </p>
+              </div>
 
-            <p className="mt-1 text-xs text-slate-500">
-              {cameraActive
-                ? "Your camera is active."
-                : "Start your camera to see the live preview."}
-            </p>
+              <ImagePlus
+                size={19}
+                className="text-cyan-300"
+              />
+            </div>
+
+            {avatarUrl ? (
+              <div className="mt-5">
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+                  <img
+                    src={avatarUrl}
+                    alt="Selected avatar"
+                    className="aspect-square w-full object-cover"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={removeAvatar}
+                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[.03] px-4 py-3 text-sm font-semibold hover:bg-white/[.07]"
+                  data-testid="button-remove-avatar"
+                >
+                  Remove image
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="mt-5 flex min-h-36 w-full flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/[.02] px-5 text-center hover:bg-white/[.05]"
+                data-testid="button-upload-avatar"
+              >
+                <Upload
+                  size={22}
+                  className="text-slate-500"
+                />
+
+                <span className="mt-3 text-sm font-semibold">
+                  Choose an avatar or image
+                </span>
+
+                <span className="mt-1 text-xs text-slate-600">
+                  PNG, JPG or WEBP
+                </span>
+              </button>
+            )}
+
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+              data-testid="input-avatar-upload"
+            />
+          </div>
+
+          <div className="panel rounded-2xl p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <KeyRound
+                size={18}
+                className="text-cyan-300"
+              />
+
+              <div>
+                <p className="text-sm font-bold">
+                  OBS Browser Source
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Copy the source address for your broadcast setup.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={copySource}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold hover:bg-white/[.08]"
+              data-testid="button-copy-browser-source"
+            >
+              <Copy size={16} />
+              Copy Browser Source
+            </button>
+
+            {copied ? (
+              <p
+                className="mt-3 text-center text-xs text-cyan-200"
+                data-testid="status-source-copied"
+              >
+                Browser Source URL copied.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -512,41 +997,39 @@ export function CreditsPage() {
   const [notice, setNotice] = useState("");
 
   const creditRows = [
-    ["AI looks", "4 cr / minute", "Switch visual identity while live."],
-    ["Natural camera", "Free", "Your camera stream stays free for viewers."],
-    ["Preview & rehearsal", "Free", "Take your time before the room opens."],
+    ["AI looks", "Coming soon", "AI usage billing will connect here."],
+    ["Natural camera", "Free", "Your camera preview does not use credits."],
+    ["Preview & rehearsal", "Free", "Prepare before starting a live session."],
   ];
 
   return (
     <PageIntro
       eyebrow="Resource center"
       title="Credits, clearly."
-      description="Keep your creative budget visible. Natural streaming is always free."
+      description="Credit purchases and AI usage billing will appear here once the credit system is connected."
     >
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <div className="panel hero-radial rounded-2xl p-7">
-          <p className="text-sm text-slate-400">Available balance</p>
-
-          <p className="mt-4 font-mono text-6xl text-cyan-200">
-            18
+          <p className="text-sm text-slate-400">
+            Credit balance
           </p>
 
-          <p className="mt-2 text-sm text-slate-500">
-            credits ready to use
+          <p className="mt-4 text-3xl font-bold text-cyan-200">
+            Not connected yet
+          </p>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            No fake balance is shown. Your real balance will appear after payments and credit accounting are connected.
           </p>
 
           <button
             type="button"
-            onClick={() =>
-              setNotice(
-                "Top-up options are ready for your next session.",
-              )
-            }
-            className="btn-primary mt-8 flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
+            disabled
+            className="mt-8 flex cursor-not-allowed items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-bold text-slate-500"
             data-testid="button-top-up-credits"
           >
             <Plus size={16} />
-            Add credits
+            Credit system coming soon
           </button>
 
           {notice ? (
@@ -560,7 +1043,7 @@ export function CreditsPage() {
         </div>
 
         <div className="panel rounded-2xl p-7">
-          <h2 className="font-bold">What uses credits?</h2>
+          <h2 className="font-bold">Credit usage</h2>
 
           <div className="mt-5 space-y-4">
             {creditRows.map(([name, cost, detail], index) => (
@@ -599,11 +1082,12 @@ export function TransactionsPage() {
     <PageIntro
       eyebrow="Account history"
       title="Every credit accounted for."
-      description="A simple record of your LumaLive activity."
+      description="Real transactions will appear here after the payment and credit systems are connected."
       action={
         <button
           type="button"
-          className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold hover:bg-white/[.08]"
+          disabled
+          className="flex cursor-not-allowed items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm font-semibold text-slate-500"
           data-testid="button-export-transactions"
         >
           <FileText size={16} />
@@ -611,45 +1095,14 @@ export function TransactionsPage() {
         </button>
       }
     >
-      <div className="panel overflow-x-auto rounded-2xl">
-        <table className="w-full min-w-[620px] text-left text-sm">
-          <thead className="border-b border-white/10 text-xs uppercase tracking-[.13em] text-slate-500">
-            <tr>
-              <th className="px-6 py-4 font-medium">Date</th>
-              <th className="px-6 py-4 font-medium">Activity</th>
-              <th className="px-6 py-4 font-medium">Amount</th>
-              <th className="px-6 py-4 font-medium">Status</th>
-            </tr>
-          </thead>
+      <div className="panel rounded-2xl p-8 text-center">
+        <p className="text-sm font-semibold text-slate-300">
+          No real transactions yet.
+        </p>
 
-          <tbody className="divide-y divide-white/10">
-            {transactions.map((transaction, index) => (
-              <tr
-                key={transaction.date}
-                data-testid={`row-transaction-${index}`}
-              >
-                <td className="px-6 py-5 text-slate-400">
-                  {transaction.date}
-                </td>
-
-                <td className="px-6 py-5 font-semibold">
-                  {transaction.item}
-                </td>
-
-                <td className="px-6 py-5 font-mono text-cyan-200">
-                  {transaction.amount}
-                </td>
-
-                <td className="px-6 py-5">
-                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
-                    <CheckCircle2 size={14} />
-                    {transaction.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          This page will populate automatically when purchases and credit usage are connected.
+        </p>
       </div>
     </PageIntro>
   );
