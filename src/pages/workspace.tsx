@@ -33,6 +33,8 @@ import {
   transactions,
 } from "@/lib/content";
 
+import { createLucyConnection } from "@/lib/lucy";
+
 export function FeedPage() {
   const [following, setFollowing] = useState<number[]>([]);
 
@@ -152,6 +154,9 @@ export function AiObsPage() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const lucyConnectionRef = useRef<
+    ReturnType<typeof createLucyConnection> | null
+  >(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -164,6 +169,12 @@ export function AiObsPage() {
   const [copied, setCopied] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [recordingError, setRecordingError] = useState("");
+  const [lucyError, setLucyError] = useState("");
+  const [lucyConnected, setLucyConnected] = useState(false);
+  const [lucyBusy, setLucyBusy] = useState(false);
+  const [prompt, setPrompt] = useState(
+    "Transform my appearance into a cinematic AI creator while preserving my identity, face, lighting, and natural movement.",
+  );
   const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   useEffect(() => {
@@ -179,6 +190,8 @@ export function AiObsPage() {
       if (avatarUrl) {
         URL.revokeObjectURL(avatarUrl);
       }
+
+      lucyConnectionRef.current = null;
     };
   }, [recordedUrl, avatarUrl]);
 
@@ -268,6 +281,9 @@ export function AiObsPage() {
       videoRef.current.srcObject = null;
     }
 
+    lucyConnectionRef.current = null;
+    setLucyConnected(false);
+
     setCameraActive(false);
   }
 
@@ -282,6 +298,96 @@ export function AiObsPage() {
 
     audioTrack.enabled = nextEnabled;
     setMicEnabled(nextEnabled);
+  }
+
+  function startLucy(): void {
+    setLucyError("");
+
+    if (!cameraActive) {
+      setLucyError(
+        "Start the camera before connecting Lucy 2.5.",
+      );
+      return;
+    }
+
+    if (lucyConnectionRef.current) {
+      setLucyConnected(true);
+      return;
+    }
+
+    try {
+      setLucyBusy(true);
+
+      const connection = createLucyConnection(
+        (result) => {
+          console.log("Lucy 2.5 result:", result);
+          setLucyBusy(false);
+          setLucyConnected(true);
+        },
+        (error) => {
+          console.error("Lucy 2.5 error:", error);
+          setLucyBusy(false);
+          setLucyConnected(false);
+          setLucyError(
+            "Lucy 2.5 could not establish the realtime connection.",
+          );
+        },
+      );
+
+      lucyConnectionRef.current = connection;
+
+      connection.send({
+        enable_prompt_expansion: true,
+        prompt: prompt.trim() || undefined,
+        reference_image_url:
+          avatarUrl || undefined,
+      });
+
+      setLucyConnected(true);
+      setLucyBusy(false);
+    } catch (error) {
+      console.error(error);
+
+      lucyConnectionRef.current = null;
+      setLucyConnected(false);
+      setLucyBusy(false);
+
+      setLucyError(
+        "Lucy 2.5 could not start. Check your FAL configuration and try again.",
+      );
+    }
+  }
+
+  function applyLucyPrompt(): void {
+    setLucyError("");
+
+    const connection = lucyConnectionRef.current;
+
+    if (!connection) {
+      startLucy();
+      return;
+    }
+
+    try {
+      setLucyBusy(true);
+
+      connection.send({
+        enable_prompt_expansion: true,
+        prompt: prompt.trim() || undefined,
+        reference_image_url:
+          avatarUrl || undefined,
+      });
+
+      setLucyBusy(false);
+      setLucyConnected(true);
+    } catch (error) {
+      console.error(error);
+
+      setLucyBusy(false);
+      setLucyError(
+        "Lucy could not update the transformation prompt.",
+      );
+    }
   }
 
   function startRecording(): void {
@@ -467,7 +573,7 @@ export function AiObsPage() {
       title="AI, then anywhere."
       description="Prepare your camera, avatar and visual treatment before sending the finished scene to OBS."
     >
-      <div className="grid gap-5 xl:grid-cols-[minmax(360px,1fr)_360px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(520px,1fr)_360px]">
         <div className="panel rounded-2xl p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -480,7 +586,7 @@ export function AiObsPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[.68rem] font-bold ${
                   cameraActive
@@ -514,10 +620,24 @@ export function AiObsPage() {
 
                 {micEnabled ? "Mic on" : "Mic off"}
               </span>
+
+              <span
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[.68rem] font-bold ${
+                  lucyConnected
+                    ? "border-violet-300/20 bg-violet-300/[.06] text-violet-200"
+                    : "border-white/10 bg-white/[.03] text-slate-500"
+                }`}
+              >
+                <Sparkles size={13} />
+
+                {lucyConnected
+                  ? "Lucy connected"
+                  : "Lucy offline"}
+              </span>
             </div>
           </div>
 
-          <div className="mx-auto mt-6 w-full max-w-[720px]">
+          <div className="mx-auto mt-6 w-full max-w-[1100px]">
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
               <video
                 ref={videoRef}
@@ -566,12 +686,25 @@ export function AiObsPage() {
                   REC {formatRecordingTime(recordingSeconds)}
                 </div>
               ) : null}
+
+              {lucyBusy ? (
+                <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-violet-200">
+                  <Sparkles size={13} />
+                  Processing AI
+                </div>
+              ) : null}
             </div>
           </div>
 
           {cameraError ? (
             <p className="mt-3 rounded-xl border border-rose-300/20 bg-rose-300/[.05] p-3 text-xs text-rose-200">
               {cameraError}
+            </p>
+          ) : null}
+
+          {lucyError ? (
+            <p className="mt-3 rounded-xl border border-violet-300/20 bg-violet-300/[.05] p-3 text-xs text-violet-200">
+              {lucyError}
             </p>
           ) : null}
 
@@ -619,6 +752,21 @@ export function AiObsPage() {
 
               {micEnabled ? "Mute mic" : "Unmute mic"}
             </button>
+
+            {!lucyConnected ? (
+              <button
+                type="button"
+                onClick={startLucy}
+                disabled={!cameraActive || lucyBusy}
+                className="flex items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-300/[.06] px-4 py-3 text-sm font-bold text-violet-200 hover:bg-violet-300/[.12] disabled:cursor-not-allowed disabled:opacity-40"
+                data-testid="button-connect-lucy"
+              >
+                <Sparkles size={16} />
+                {lucyBusy
+                  ? "Connecting..."
+                  : "Connect Lucy 2.5"}
+              </button>
+            ) : null}
 
             {!recording ? (
               <button
@@ -699,7 +847,7 @@ export function AiObsPage() {
             <WorkflowStep
               number="02"
               title="Transform"
-              text="Choose your avatar and visual treatment."
+              text="Send your prompt and reference image to Lucy 2.5."
             />
 
             <WorkflowStep
@@ -712,20 +860,64 @@ export function AiObsPage() {
 
         <div className="space-y-5">
           <div className="rounded-2xl border border-violet-300/20 bg-violet-300/[.05] p-5 sm:p-6">
-            <Sparkles className="text-violet-300" />
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold">
+                  AI transformation
+                </p>
 
-            <h2 className="mt-5 text-xl font-bold">
-              AI transformation
-            </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Control the live Lucy 2.5 instruction.
+                </p>
+              </div>
 
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Choose the visual treatment for your production preview.
-            </p>
+              <Sparkles
+                size={20}
+                className="text-violet-300"
+              />
+            </div>
+
+            <label className="mt-5 block">
+              <span className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
+                Transformation prompt
+              </span>
+
+              <textarea
+                value={prompt}
+                onChange={(event) =>
+                  setPrompt(event.target.value)
+                }
+                rows={6}
+                className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-200 outline-none placeholder:text-slate-600 focus:border-violet-300/40"
+                placeholder="Tell Lucy exactly what should change..."
+                data-testid="textarea-lucy-prompt"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={applyLucyPrompt}
+              disabled={!cameraActive || lucyBusy}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-300/10 px-4 py-3 text-sm font-bold text-violet-200 hover:bg-violet-300/20 disabled:cursor-not-allowed disabled:opacity-40"
+              data-testid="button-apply-lucy-prompt"
+            >
+              <Sparkles size={16} />
+              {lucyBusy
+                ? "Applying..."
+                : lucyConnected
+                  ? "Update AI transformation"
+                  : "Start AI transformation"}
+            </button>
 
             <div className="mt-5 grid gap-3">
               <button
                 type="button"
-                onClick={() => setSelectedLook("natural")}
+                onClick={() => {
+                  setSelectedLook("natural");
+                  setPrompt(
+                    "Keep my appearance natural and cinematic. Preserve my identity, face, skin texture, lighting, and movement.",
+                  );
+                }}
                 className={`rounded-xl border p-4 text-left transition ${
                   selectedLook === "natural"
                     ? "border-cyan-300/50 bg-cyan-300/[.10]"
@@ -736,13 +928,18 @@ export function AiObsPage() {
                 <p className="font-bold">Natural</p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Keep the camera appearance unchanged.
+                  Preserve the creator with a cinematic natural finish.
                 </p>
               </button>
 
               <button
                 type="button"
-                onClick={() => setSelectedLook("aurora")}
+                onClick={() => {
+                  setSelectedLook("aurora");
+                  setPrompt(
+                    "Give the scene a cinematic aurora-inspired visual treatment with cool luminous atmosphere while preserving my identity and natural movement.",
+                  );
+                }}
                 className={`rounded-xl border p-4 text-left transition ${
                   selectedLook === "aurora"
                     ? "border-violet-300/50 bg-violet-300/[.10]"
@@ -753,7 +950,7 @@ export function AiObsPage() {
                 <p className="font-bold">Aurora</p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Apply the Aurora preview treatment.
+                  Send an aurora-inspired treatment to the AI workflow.
                 </p>
               </button>
             </div>
@@ -775,11 +972,11 @@ export function AiObsPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-bold">
-                  Avatar / image
+                  Avatar / reference image
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Add an image for the production preview.
+                  Use an image as the Lucy reference.
                 </p>
               </div>
 
@@ -794,7 +991,7 @@ export function AiObsPage() {
                 <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
                   <img
                     src={avatarUrl}
-                    alt="Selected avatar"
+                    alt="Selected reference"
                     className="aspect-square w-full object-cover"
                   />
                 </div>
@@ -821,11 +1018,11 @@ export function AiObsPage() {
                 />
 
                 <span className="mt-3 text-sm font-semibold">
-                  Choose an avatar or image
+                  Choose a reference image
                 </span>
 
                 <span className="mt-1 text-xs text-slate-600">
-                  PNG, JPG or WEBP
+                  PNG, JPG or WEBP • 512×512 minimum for character swap
                 </span>
               </button>
             )}
