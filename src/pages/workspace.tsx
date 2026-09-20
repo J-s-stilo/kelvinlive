@@ -30,7 +30,6 @@ import {
 import {
   activity,
   analyticsBars,
-  transactions,
 } from "@/lib/content";
 
 import {
@@ -157,9 +156,11 @@ export function AiObsPage() {
   const outputVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
+
   const lucyConnectionRef = useRef<
     ReturnType<typeof createLucyConnection> | null
   >(null);
+
   const lucyMediaSessionRef =
     useRef<LucyMediaSession | null>(null);
 
@@ -170,20 +171,30 @@ export function AiObsPage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [recording, setRecording] = useState(false);
+
   const [selectedLook, setSelectedLook] = useState<
     "natural" | "aurora"
   >("natural");
+
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarUploading, setAvatarUploading] =
+    useState(false);
+
   const [recordedUrl, setRecordedUrl] = useState("");
   const [copied, setCopied] = useState(false);
+
   const [cameraError, setCameraError] = useState("");
-  const [recordingError, setRecordingError] = useState("");
+  const [recordingError, setRecordingError] =
+    useState("");
   const [lucyError, setLucyError] = useState("");
-  const [lucyConnected, setLucyConnected] = useState(false);
+
+  const [lucyConnected, setLucyConnected] =
+    useState(false);
+
   const [lucyBusy, setLucyBusy] = useState(false);
 
   const [prompt, setPrompt] = useState(
-    "Transform my appearance into a cinematic AI creator while preserving my identity, face, lighting, and natural movement.",
+    "Replace the person in the live video with the person or character in the reference image. Make the reference character the visible person in the video while preserving the live person's body movement, gestures, head movement, facial performance, and speech. Keep the camera framing and background stable.",
   );
 
   const [recordingSeconds, setRecordingSeconds] =
@@ -198,16 +209,27 @@ export function AiObsPage() {
       lucyMediaSessionRef.current?.close();
       lucyMediaSessionRef.current = null;
       lucyConnectionRef.current = null;
+    };
+  }, []);
 
+  useEffect(() => {
+    return () => {
       if (recordedUrl) {
         URL.revokeObjectURL(recordedUrl);
       }
+    };
+  }, [recordedUrl]);
 
-      if (avatarUrl) {
+  useEffect(() => {
+    return () => {
+      if (
+        avatarUrl &&
+        avatarUrl.startsWith("blob:")
+      ) {
         URL.revokeObjectURL(avatarUrl);
       }
     };
-  }, [recordedUrl, avatarUrl]);
+  }, [avatarUrl]);
 
   useEffect(() => {
     if (!recording) {
@@ -259,7 +281,8 @@ export function AiObsPage() {
 
       streamRef.current = stream;
 
-      const audioTrack = stream.getAudioTracks()[0];
+      const audioTrack =
+        stream.getAudioTracks()[0];
 
       if (audioTrack) {
         audioTrack.enabled = micEnabled;
@@ -272,7 +295,9 @@ export function AiObsPage() {
 
       if (outputVideoRef.current) {
         outputVideoRef.current.srcObject = stream;
-        await outputVideoRef.current.play().catch(() => {});
+        await outputVideoRef.current
+          .play()
+          .catch(() => {});
       }
 
       setCameraActive(true);
@@ -375,10 +400,14 @@ export function AiObsPage() {
           handleLucyResult(result);
         },
         (error) => {
-          console.error("Lucy 2.5 error:", error);
+          console.error(
+            "Lucy 2.5 error:",
+            error,
+          );
 
           setLucyBusy(false);
           setLucyConnected(false);
+
           setLucyError(
             "Lucy 2.5 could not establish the realtime connection.",
           );
@@ -387,33 +416,37 @@ export function AiObsPage() {
 
       lucyConnectionRef.current = connection;
 
-      const mediaSession = createLucyMediaSession(
-        connection,
-        inputStream,
-        outputVideo,
-        () => {
-          setLucyBusy(false);
-          setLucyConnected(true);
-        },
-        (error) => {
-          console.error(
-            "Lucy WebRTC media error:",
-            error,
-          );
+      const mediaSession =
+        createLucyMediaSession(
+          connection,
+          inputStream,
+          outputVideo,
+          () => {
+            setLucyBusy(false);
+            setLucyConnected(true);
+          },
+          (error) => {
+            console.error(
+              "Lucy WebRTC media error:",
+              error,
+            );
 
-          setLucyBusy(false);
-          setLucyConnected(false);
-          setLucyError(
-            "Lucy 2.5 could not establish the video connection.",
-          );
-        },
-      );
+            setLucyBusy(false);
+            setLucyConnected(false);
 
-      lucyMediaSessionRef.current = mediaSession;
+            setLucyError(
+              "Lucy 2.5 could not establish the video connection.",
+            );
+          },
+        );
+
+      lucyMediaSessionRef.current =
+        mediaSession;
 
       connection.send({
         enable_prompt_expansion: true,
-        prompt: prompt.trim() || undefined,
+        prompt:
+          prompt.trim() || undefined,
         reference_image_url:
           avatarUrl || undefined,
       });
@@ -436,7 +469,8 @@ export function AiObsPage() {
   function applyLucyPrompt(): void {
     setLucyError("");
 
-    const connection = lucyConnectionRef.current;
+    const connection =
+      lucyConnectionRef.current;
 
     if (!connection) {
       startLucy();
@@ -448,7 +482,8 @@ export function AiObsPage() {
 
       connection.send({
         enable_prompt_expansion: true,
-        prompt: prompt.trim() || undefined,
+        prompt:
+          prompt.trim() || undefined,
         reference_image_url:
           avatarUrl || undefined,
       });
@@ -456,6 +491,7 @@ export function AiObsPage() {
       console.error(error);
 
       setLucyBusy(false);
+
       setLucyError(
         "Lucy could not update the transformation prompt.",
       );
@@ -489,28 +525,41 @@ export function AiObsPage() {
           "video/webm;codecs=vp9,opus",
         )
       ) {
-        mimeType = "video/webm;codecs=vp9,opus";
+        mimeType =
+          "video/webm;codecs=vp9,opus";
       } else if (
         MediaRecorder.isTypeSupported(
           "video/webm;codecs=vp8,opus",
         )
       ) {
-        mimeType = "video/webm;codecs=vp8,opus";
+        mimeType =
+          "video/webm;codecs=vp8,opus";
       } else if (
-        MediaRecorder.isTypeSupported("video/webm")
+        MediaRecorder.isTypeSupported(
+          "video/webm",
+        )
       ) {
         mimeType = "video/webm";
       }
 
       const recorder = mimeType
-        ? new MediaRecorder(streamRef.current, {
-            mimeType,
-          })
-        : new MediaRecorder(streamRef.current);
+        ? new MediaRecorder(
+            streamRef.current,
+            {
+              mimeType,
+            },
+          )
+        : new MediaRecorder(
+            streamRef.current,
+          );
 
-      recorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (
+        event,
+      ) => {
         if (event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
+          recordedChunksRef.current.push(
+            event.data,
+          );
         }
       };
 
@@ -525,9 +574,14 @@ export function AiObsPage() {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, {
-          type: recorder.mimeType || "video/webm",
-        });
+        const blob = new Blob(
+          recordedChunksRef.current,
+          {
+            type:
+              recorder.mimeType ||
+              "video/webm",
+          },
+        );
 
         if (blob.size === 0) {
           setRecordingError(
@@ -537,10 +591,13 @@ export function AiObsPage() {
         }
 
         if (recordedUrl) {
-          URL.revokeObjectURL(recordedUrl);
+          URL.revokeObjectURL(
+            recordedUrl,
+          );
         }
 
-        const url = URL.createObjectURL(blob);
+        const url =
+          URL.createObjectURL(blob);
 
         setRecordedUrl(url);
       };
@@ -560,7 +617,8 @@ export function AiObsPage() {
   }
 
   function stopRecording(): void {
-    const recorder = recorderRef.current;
+    const recorder =
+      recorderRef.current;
 
     if (!recorder) {
       return;
@@ -574,35 +632,114 @@ export function AiObsPage() {
     setRecording(false);
   }
 
-  function handleAvatarChange(
+  async function handleAvatarChange(
     event: ChangeEvent<HTMLInputElement>,
-  ): void {
+  ): Promise<void> {
     const file = event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
+    setRecordingError("");
+
     if (!file.type.startsWith("image/")) {
-      setRecordingError("Please choose an image file.");
+      setRecordingError(
+        "Please choose a PNG, JPG or WEBP image.",
+      );
       return;
     }
 
-    if (avatarUrl) {
-      URL.revokeObjectURL(avatarUrl);
+    setAvatarUploading(true);
+
+    try {
+      const dataUrl =
+        await new Promise<string>(
+          (resolve, reject) => {
+            const reader =
+              new FileReader();
+
+            reader.onload = () => {
+              if (
+                typeof reader.result !==
+                "string"
+              ) {
+                reject(
+                  new Error(
+                    "Unable to read the reference image.",
+                  ),
+                );
+                return;
+              }
+
+              resolve(reader.result);
+            };
+
+            reader.onerror = () => {
+              reject(
+                new Error(
+                  "Unable to read the reference image.",
+                ),
+              );
+            };
+
+            reader.readAsDataURL(file);
+          },
+        );
+
+      const dimensions =
+        await new Promise<{
+          width: number;
+          height: number;
+        }>((resolve, reject) => {
+          const image = new Image();
+
+          image.onload = () => {
+            resolve({
+              width:
+                image.naturalWidth,
+              height:
+                image.naturalHeight,
+            });
+          };
+
+          image.onerror = () => {
+            reject(
+              new Error(
+                "The selected image could not be loaded.",
+              ),
+            );
+          };
+
+          image.src = dataUrl;
+        });
+
+      if (
+        dimensions.width < 512 ||
+        dimensions.height < 512
+      ) {
+        setRecordingError(
+          `Reference image must be at least 512×512. Selected image is ${dimensions.width}×${dimensions.height}.`,
+        );
+        return;
+      }
+
+      setAvatarUrl(dataUrl);
+    } catch (error) {
+      console.error(
+        "Reference image error:",
+        error,
+      );
+
+      setRecordingError(
+        "The reference image could not be loaded.",
+      );
+    } finally {
+      setAvatarUploading(false);
     }
-
-    const url = URL.createObjectURL(file);
-
-    setAvatarUrl(url);
-    setRecordingError("");
   }
 
   function removeAvatar(): void {
-    if (avatarUrl) {
-      URL.revokeObjectURL(avatarUrl);
-    }
-
     setAvatarUrl("");
 
     if (avatarInputRef.current) {
@@ -611,10 +748,14 @@ export function AiObsPage() {
   }
 
   async function copySource(): Promise<void> {
-    const sourceUrl = `${window.location.origin}/source`;
+    const sourceUrl =
+      `${window.location.origin}/source`;
 
     try {
-      await navigator.clipboard.writeText(sourceUrl);
+      await navigator.clipboard.writeText(
+        sourceUrl,
+      );
+
       setCopied(true);
 
       window.setTimeout(() => {
@@ -630,10 +771,13 @@ export function AiObsPage() {
       return;
     }
 
-    const anchor = document.createElement("a");
+    const anchor =
+      document.createElement("a");
 
     anchor.href = recordedUrl;
-    anchor.download = `lumalive-recording-${Date.now()}.webm`;
+    anchor.download =
+      `lumalive-recording-${Date.now()}.webm`;
+
     anchor.click();
   }
 
@@ -670,7 +814,9 @@ export function AiObsPage() {
                   <VideoOff size={13} />
                 )}
 
-                {cameraActive ? "Camera on" : "Camera off"}
+                {cameraActive
+                  ? "Camera on"
+                  : "Camera off"}
               </span>
 
               <span
@@ -686,7 +832,9 @@ export function AiObsPage() {
                   <MicOff size={13} />
                 )}
 
-                {micEnabled ? "Mic on" : "Mic off"}
+                {micEnabled
+                  ? "Mic on"
+                  : "Mic off"}
               </span>
 
               <span
@@ -779,7 +927,10 @@ export function AiObsPage() {
                   {recording ? (
                     <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-rose-200">
                       <span className="live-pulse size-2 rounded-full bg-rose-300" />
-                      REC {formatRecordingTime(recordingSeconds)}
+                      REC{" "}
+                      {formatRecordingTime(
+                        recordingSeconds,
+                      )}
                     </div>
                   ) : null}
 
@@ -848,18 +999,24 @@ export function AiObsPage() {
                 <MicOff size={16} />
               )}
 
-              {micEnabled ? "Mute mic" : "Unmute mic"}
+              {micEnabled
+                ? "Mute mic"
+                : "Unmute mic"}
             </button>
 
             {!lucyConnectionRef.current ? (
               <button
                 type="button"
                 onClick={startLucy}
-                disabled={!cameraActive || lucyBusy}
+                disabled={
+                  !cameraActive ||
+                  lucyBusy
+                }
                 className="flex items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-300/[.06] px-4 py-3 text-sm font-bold text-violet-200 hover:bg-violet-300/[.12] disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="button-connect-lucy"
               >
                 <Sparkles size={16} />
+
                 {lucyBusy
                   ? "Connecting..."
                   : "Connect Lucy 2.5"}
@@ -983,7 +1140,9 @@ export function AiObsPage() {
               <textarea
                 value={prompt}
                 onChange={(event) =>
-                  setPrompt(event.target.value)
+                  setPrompt(
+                    event.target.value,
+                  )
                 }
                 rows={6}
                 className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-200 outline-none placeholder:text-slate-600 focus:border-violet-300/40"
@@ -995,11 +1154,15 @@ export function AiObsPage() {
             <button
               type="button"
               onClick={applyLucyPrompt}
-              disabled={!cameraActive || lucyBusy}
+              disabled={
+                !cameraActive ||
+                lucyBusy
+              }
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-300/10 px-4 py-3 text-sm font-bold text-violet-200 hover:bg-violet-300/20 disabled:cursor-not-allowed disabled:opacity-40"
               data-testid="button-apply-lucy-prompt"
             >
               <Sparkles size={16} />
+
               {lucyBusy
                 ? "Applying..."
                 : lucyConnected
@@ -1011,44 +1174,56 @@ export function AiObsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedLook("natural");
+                  setSelectedLook(
+                    "natural",
+                  );
+
                   setPrompt(
-                    "Keep my appearance natural and cinematic. Preserve my identity, face, skin texture, lighting, and movement.",
+                    "Replace the person in the live video with the person or character in the reference image. Preserve the reference character's appearance while following the live person's body movement, gestures, head movement, facial performance, and speech.",
                   );
                 }}
                 className={`rounded-xl border p-4 text-left transition ${
-                  selectedLook === "natural"
+                  selectedLook ===
+                  "natural"
                     ? "border-cyan-300/50 bg-cyan-300/[.10]"
                     : "border-white/10 bg-white/[.02]"
                 }`}
                 data-testid="button-ai-look-natural"
               >
-                <p className="font-bold">Natural</p>
+                <p className="font-bold">
+                  Natural character swap
+                </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Preserve the creator with a cinematic natural finish.
+                  Use the reference character while following your live movement.
                 </p>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedLook("aurora");
+                  setSelectedLook(
+                    "aurora",
+                  );
+
                   setPrompt(
-                    "Give the scene a cinematic aurora-inspired visual treatment with cool luminous atmosphere while preserving my identity and natural movement.",
+                    "Replace the person in the live video with the person or character in the reference image. Preserve the character's appearance and make the character follow the live person's full-body movement, gestures, head movement, facial performance, and speech, with a cinematic aurora-inspired atmosphere.",
                   );
                 }}
                 className={`rounded-xl border p-4 text-left transition ${
-                  selectedLook === "aurora"
+                  selectedLook ===
+                  "aurora"
                     ? "border-violet-300/50 bg-violet-300/[.10]"
                     : "border-white/10 bg-white/[.02]"
                 }`}
                 data-testid="button-ai-look-aurora"
               >
-                <p className="font-bold">Aurora</p>
+                <p className="font-bold">
+                  Cinematic character
+                </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Send an aurora-inspired treatment to the AI workflow.
+                  Character swap with a cinematic visual treatment.
                 </p>
               </button>
             </div>
@@ -1059,9 +1234,10 @@ export function AiObsPage() {
               </p>
 
               <p className="mt-2 text-sm font-bold text-cyan-200">
-                {selectedLook === "natural"
-                  ? "Natural"
-                  : "Aurora"}
+                {selectedLook ===
+                "natural"
+                  ? "Natural character swap"
+                  : "Cinematic character"}
               </p>
             </div>
           </div>
@@ -1074,7 +1250,7 @@ export function AiObsPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Use an image as the Lucy reference.
+                  Use an image as the Lucy character reference.
                 </p>
               </div>
 
@@ -1106,8 +1282,11 @@ export function AiObsPage() {
             ) : (
               <button
                 type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                className="mt-5 flex min-h-36 w-full flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/[.02] px-5 text-center hover:bg-white/[.05]"
+                disabled={avatarUploading}
+                onClick={() =>
+                  avatarInputRef.current?.click()
+                }
+                className="mt-5 flex min-h-36 w-full flex-col items-center justify-center rounded-xl border border-dashed border-white/15 bg-white/[.02] px-5 text-center hover:bg-white/[.05] disabled:cursor-not-allowed disabled:opacity-50"
                 data-testid="button-upload-avatar"
               >
                 <Upload
@@ -1116,7 +1295,9 @@ export function AiObsPage() {
                 />
 
                 <span className="mt-3 text-sm font-semibold">
-                  Choose a reference image
+                  {avatarUploading
+                    ? "Preparing reference image..."
+                    : "Choose a reference image"}
                 </span>
 
                 <span className="mt-1 text-xs text-slate-600">
@@ -1130,7 +1311,9 @@ export function AiObsPage() {
               type="file"
               accept="image/png,image/jpeg,image/webp"
               className="hidden"
-              onChange={handleAvatarChange}
+              onChange={
+                handleAvatarChange
+              }
               data-testid="input-avatar-upload"
             />
           </div>
@@ -1192,30 +1375,36 @@ export function AnalyticsPage() {
       description="A lightweight view of your recent sessions and audience rhythm."
     >
       <div className="grid gap-4 sm:grid-cols-3">
-        {metrics.map(([label, value, change], index) => (
-          <div
-            className="panel rounded-2xl p-5"
-            key={label}
-            data-testid={`metric-analytics-${index}`}
-          >
-            <p className="text-sm text-slate-500">{label}</p>
+        {metrics.map(
+          ([label, value, change], index) => (
+            <div
+              className="panel rounded-2xl p-5"
+              key={label}
+              data-testid={`metric-analytics-${index}`}
+            >
+              <p className="text-sm text-slate-500">
+                {label}
+              </p>
 
-            <p className="mt-3 font-mono text-2xl text-slate-100">
-              {value}
-            </p>
+              <p className="mt-3 font-mono text-2xl text-slate-100">
+                {value}
+              </p>
 
-            <p className="mt-2 flex items-center gap-1 text-xs text-emerald-300">
-              <TrendingUp size={13} />
-              {change} this month
-            </p>
-          </div>
-        ))}
+              <p className="mt-2 flex items-center gap-1 text-xs text-emerald-300">
+                <TrendingUp size={13} />
+                {change} this month
+              </p>
+            </div>
+          ),
+        )}
       </div>
 
       <div className="panel mt-5 rounded-2xl p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="font-bold">Audience minutes</h2>
+            <h2 className="font-bold">
+              Audience minutes
+            </h2>
 
             <p className="mt-1 text-xs text-slate-500">
               Last 12 sessions
@@ -1229,27 +1418,33 @@ export function AnalyticsPage() {
         </div>
 
         <div className="mt-10 flex h-44 items-end gap-2">
-          {analyticsBars.map((height, index) => (
-            <div
-              className="group flex flex-1 flex-col items-center gap-2"
-              key={index}
-            >
+          {analyticsBars.map(
+            (height, index) => (
               <div
-                className="w-full rounded-t-md bg-gradient-to-t from-violet-400/70 to-cyan-300"
-                style={{ height: `${height}%` }}
-                data-testid={`bar-analytics-${index}`}
-              />
+                className="group flex flex-1 flex-col items-center gap-2"
+                key={index}
+              >
+                <div
+                  className="w-full rounded-t-md bg-gradient-to-t from-violet-400/70 to-cyan-300"
+                  style={{
+                    height: `${height}%`,
+                  }}
+                  data-testid={`bar-analytics-${index}`}
+                />
 
-              <span className="font-mono text-[.58rem] text-slate-600">
-                {index + 1}
-              </span>
-            </div>
-          ))}
+                <span className="font-mono text-[.58rem] text-slate-600">
+                  {index + 1}
+                </span>
+              </div>
+            ),
+          )}
         </div>
       </div>
 
       <div className="panel mt-5 rounded-2xl p-6">
-        <h2 className="font-bold">Recent sessions</h2>
+        <h2 className="font-bold">
+          Recent sessions
+        </h2>
 
         <div className="mt-4 divide-y divide-white/10">
           {activity.map((item) => (
@@ -1261,7 +1456,8 @@ export function AnalyticsPage() {
                 className={`size-2 rounded-full ${
                   item.color === "cyan"
                     ? "bg-cyan-300"
-                    : item.color === "violet"
+                    : item.color ===
+                        "violet"
                       ? "bg-violet-300"
                       : "bg-amber-300"
                 }`}
@@ -1290,9 +1486,21 @@ export function AnalyticsPage() {
 
 export function CreditsPage() {
   const creditRows = [
-    ["AI looks", "Coming soon", "AI usage billing will connect here."],
-    ["Natural camera", "Free", "Your camera preview does not use credits."],
-    ["Preview & rehearsal", "Free", "Prepare before starting a live session."],
+    [
+      "AI looks",
+      "Coming soon",
+      "AI usage billing will connect here.",
+    ],
+    [
+      "Natural camera",
+      "Free",
+      "Your camera preview does not use credits.",
+    ],
+    [
+      "Preview & rehearsal",
+      "Free",
+      "Prepare before starting a live session.",
+    ],
   ];
 
   return (
@@ -1327,33 +1535,39 @@ export function CreditsPage() {
         </div>
 
         <div className="panel rounded-2xl p-7">
-          <h2 className="font-bold">Credit usage</h2>
+          <h2 className="font-bold">
+            Credit usage
+          </h2>
 
           <div className="mt-5 space-y-4">
-            {creditRows.map(([name, cost, detail], index) => (
-              <div
-                className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/[.02] p-4"
-                key={name}
-                data-testid={`row-credit-${index}`}
-              >
-                <Sparkles
-                  size={17}
-                  className="mt-0.5 text-violet-300"
-                />
+            {creditRows.map(
+              ([name, cost, detail], index) => (
+                <div
+                  className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/[.02] p-4"
+                  key={name}
+                  data-testid={`row-credit-${index}`}
+                >
+                  <Sparkles
+                    size={17}
+                    className="mt-0.5 text-violet-300"
+                  />
 
-                <div className="flex-1">
-                  <p className="text-sm font-bold">{name}</p>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold">
+                      {name}
+                    </p>
 
-                  <p className="mt-1 text-xs text-slate-500">
-                    {detail}
-                  </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {detail}
+                    </p>
+                  </div>
+
+                  <span className="font-mono text-xs text-cyan-200">
+                    {cost}
+                  </span>
                 </div>
-
-                <span className="font-mono text-xs text-cyan-200">
-                  {cost}
-                </span>
-              </div>
-            ))}
+              ),
+            )}
           </div>
         </div>
       </div>
@@ -1394,9 +1608,24 @@ export function TransactionsPage() {
 
 export function TutorialPage() {
   const lessons = [
-    ["01", "Your first private preview", "Learn the studio controls before the room opens.", "4 min"],
-    ["02", "A thoughtful AI workflow", "Use a look as a creative choice, not a disguise.", "7 min"],
-    ["03", "Bring LumaLive into OBS", "Add your private Browser Source in three steps.", "5 min"],
+    [
+      "01",
+      "Your first private preview",
+      "Learn the studio controls before the room opens.",
+      "4 min",
+    ],
+    [
+      "02",
+      "A thoughtful AI workflow",
+      "Use a look as a creative choice, not a disguise.",
+      "7 min",
+    ],
+    [
+      "03",
+      "Bring LumaLive into OBS",
+      "Add your private Browser Source in three steps.",
+      "5 min",
+    ],
   ];
 
   return (
@@ -1406,39 +1635,43 @@ export function TutorialPage() {
       description="Short guides for making the technical part feel unremarkable."
     >
       <div className="space-y-3">
-        {lessons.map(([number, title, text, duration]) => (
-          <button
-            type="button"
-            className="panel group flex w-full items-center gap-5 rounded-2xl p-5 text-left hover:border-cyan-300/30"
-            key={number}
-            data-testid={`button-tutorial-${number}`}
-          >
-            <span className="font-mono text-sm text-cyan-300">
-              {number}
-            </span>
-
-            <span className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-slate-300">
-              <PlayCircle size={20} />
-            </span>
-
-            <span className="min-w-0 flex-1">
-              <span className="block font-bold">{title}</span>
-
-              <span className="mt-1 block truncate text-sm text-slate-500">
-                {text}
+        {lessons.map(
+          ([number, title, text, duration]) => (
+            <button
+              type="button"
+              className="panel group flex w-full items-center gap-5 rounded-2xl p-5 text-left hover:border-cyan-300/30"
+              key={number}
+              data-testid={`button-tutorial-${number}`}
+            >
+              <span className="font-mono text-sm text-cyan-300">
+                {number}
               </span>
-            </span>
 
-            <span className="hidden text-xs text-slate-500 sm:block">
-              {duration}
-            </span>
+              <span className="grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-slate-300">
+                <PlayCircle size={20} />
+              </span>
 
-            <ArrowRight
-              size={17}
-              className="text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300"
-            />
-          </button>
-        ))}
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold">
+                  {title}
+                </span>
+
+                <span className="mt-1 block truncate text-sm text-slate-500">
+                  {text}
+                </span>
+              </span>
+
+              <span className="hidden text-xs text-slate-500 sm:block">
+                {duration}
+              </span>
+
+              <ArrowRight
+                size={17}
+                className="text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300"
+              />
+            </button>
+          ),
+        )}
       </div>
     </PageIntro>
   );
@@ -1469,7 +1702,9 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <p className="font-bold">Ari Mendez</p>
+              <p className="font-bold">
+                Ari Mendez
+              </p>
 
               <p className="text-sm text-slate-500">
                 ari@lumalive.example
@@ -1479,7 +1714,9 @@ export function SettingsPage() {
 
           <div className="mt-8 space-y-2 text-sm">
             <div className="flex items-center justify-between rounded-xl bg-white/[.03] p-3">
-              <span className="text-slate-400">Plan</span>
+              <span className="text-slate-400">
+                Plan
+              </span>
 
               <span className="font-semibold text-cyan-200">
                 Creator
@@ -1487,15 +1724,21 @@ export function SettingsPage() {
             </div>
 
             <div className="flex items-center justify-between rounded-xl bg-white/[.03] p-3">
-              <span className="text-slate-400">Member since</span>
+              <span className="text-slate-400">
+                Member since
+              </span>
 
-              <span>September 2026</span>
+              <span>
+                September 2026
+              </span>
             </div>
           </div>
         </div>
 
         <div className="panel rounded-2xl p-6">
-          <h2 className="font-bold">Studio defaults</h2>
+          <h2 className="font-bold">
+            Studio defaults
+          </h2>
 
           <div className="mt-6 space-y-5">
             <label className="flex items-center justify-between gap-4">
@@ -1545,8 +1788,12 @@ export function SettingsPage() {
                 className="mt-2 w-full rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300"
                 data-testid="select-default-resolution"
               >
-                <option>1080p</option>
-                <option>720p</option>
+                <option>
+                  1080p
+                </option>
+                <option>
+                  720p
+                </option>
               </select>
             </label>
           </div>
@@ -1558,7 +1805,9 @@ export function SettingsPage() {
             data-testid="button-save-settings"
           >
             <Save size={16} />
-            {saved ? "Saved" : "Save changes"}
+            {saved
+              ? "Saved"
+              : "Save changes"}
           </button>
         </div>
       </div>
@@ -1584,11 +1833,15 @@ function PageIntro({
   return (
     <div
       className="space-y-8"
-      data-testid={`page-${title.toLowerCase().replaceAll(" ", "-")}`}
+      data-testid={`page-${title
+        .toLowerCase()
+        .replaceAll(" ", "-")}`}
     >
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="eyebrow">{eyebrow}</p>
+          <p className="eyebrow">
+            {eyebrow}
+          </p>
 
           <h1 className="mt-3 text-3xl font-extrabold tracking-[-.05em] sm:text-4xl">
             {title}
@@ -1624,9 +1877,13 @@ function WorkflowStep({
         {number}
       </span>
 
-      <p className="mt-5 text-sm font-bold">{title}</p>
+      <p className="mt-5 text-sm font-bold">
+        {title}
+      </p>
 
-      <p className="mt-1 text-xs text-slate-500">{text}</p>
+      <p className="mt-1 text-xs text-slate-500">
+        {text}
+      </p>
     </div>
   );
 }
