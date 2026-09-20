@@ -14,9 +14,10 @@ type LucySignalResult = {
   type?: string;
   iceServers?: RTCIceServer[];
   iceservers?: RTCIceServer[];
+  ice_servers?: RTCIceServer[];
   candidate?: RTCIceCandidateInit | null;
   sdp?: string;
-  answer?: string;
+  error?: unknown;
 };
 
 type LucyConnectionWithHandler = LucyConnection & {
@@ -71,10 +72,38 @@ export function createLucyMediaSession(
   onError: (error: unknown) => void,
 ): LucyMediaSession {
   let peerConnection: RTCPeerConnection | null = null;
+  let connected = false;
   let closed = false;
 
   const connectionWithHandler =
     connection as LucyConnectionWithHandler;
+
+  async function createOffer(): Promise<void> {
+    if (!peerConnection || closed) {
+      return;
+    }
+
+    try {
+      const offer =
+        await peerConnection.createOffer();
+
+      await peerConnection.setLocalDescription(
+        offer,
+      );
+
+      connection.send({
+        type: "offer",
+        sdp: offer.sdp,
+      });
+    } catch (error) {
+      console.error(
+        "Lucy offer creation failed:",
+        error,
+      );
+
+      onError(error);
+    }
+  }
 
   async function handleSignal(
     rawResult: unknown,
@@ -83,25 +112,51 @@ export function createLucyMediaSession(
       return;
     }
 
-    const result = rawResult as LucySignalResult;
+    const result =
+      rawResult as LucySignalResult;
 
     try {
+      if (result.error) {
+        onError(
+          new Error(
+            typeof result.error === "string"
+              ? result.error
+              : "Lucy realtime server error.",
+          ),
+        );
+        return;
+      }
+
       const iceServers =
         result.iceServers ??
-        result.iceservers;
+        result.iceservers ??
+        result.ice_servers;
 
-      if (iceServers) {
+      if (
+        result.type === "iceServers" ||
+        result.type === "iceservers" ||
+        iceServers
+      ) {
+        if (!iceServers) {
+          throw new Error(
+            "Lucy did not provide ICE servers.",
+          );
+        }
+
         if (peerConnection) {
           peerConnection.close();
         }
 
-        peerConnection = new RTCPeerConnection({
-          iceServers,
-        });
+        peerConnection =
+          new RTCPeerConnection({
+            iceServers,
+          });
 
-        peerConnection.ontrack = (event) => {
-          const [remoteStream] =
-            event.streams;
+        peerConnection.ontrack = (
+          event,
+        ) => {
+          const remoteStream =
+            event.streams?.[0];
 
           if (!remoteStream) {
             return;
@@ -113,7 +168,10 @@ export function createLucyMediaSession(
           void outputVideo
             .play()
             .then(() => {
-              onConnected();
+              if (!connected) {
+                connected = true;
+                onConnected();
+              }
             })
             .catch((error) => {
               console.error(
@@ -121,7 +179,10 @@ export function createLucyMediaSession(
                 error,
               );
 
-              onConnected();
+              if (!connected) {
+                connected = true;
+                onConnected();
+              }
             });
         };
 
@@ -132,14 +193,17 @@ export function createLucyMediaSession(
             return;
           }
 
-          try {
-            connection.send({
+          connection.send({
+            type: "icecandidate",
+            candidate: {
               candidate:
-                event.candidate.toJSON(),
-            });
-          } catch (error) {
-            onError(error);
-          }
+                event.candidate.candidate,
+              sdpMid:
+                event.candidate.sdpMid,
+              sdpMLineIndex:
+                event.candidate.sdpMLineIndex,
+            },
+          });
         };
 
         peerConnection.onconnectionstatechange =
@@ -151,56 +215,137 @@ export function createLucyMediaSession(
             const state =
               peerConnection.connectionState;
 
-            if (
-              state === "failed" ||
-              state === "closed"
-            ) {
+            if (state === "failed") {
               onError(
                 new Error(
-                  `Lucy WebRTC connection ${state}.`,
+                  "Lucy WebRTC connection failed.",
                 ),
               );
             }
+
+            if (state === "closed") {
+              return;
+            }
           };
 
-        for (const track of inputStream.getTracks()) {
+        for (const track of
+          inputStream.getTracks()) {
           peerConnection.addTrack(
             track,
             inputStream,
           );
         }
 
-        return;
-      }
-
-      if (result.candidate) {
-        if (!peerConnection) {
-          return;
-        }
-
-        await peerConnection.addIceCandidate(
-          result.candidate,
-        );
+        await createOffer();
 
         return;
       }
-
-      const answerSdp =
-        result.sdp ?? result.answer;
 
       if (
-        answerSdp &&
-        peerConnection &&
-        !peerConnection.currentRemoteDescription
+        result.type === "answer" &&
+        result.sdp &&
+        peerConnection
       ) {
         await peerConnection.setRemoteDescription(
           {
             type: "answer",
-            sdp: answerSdp,
+            sdp: result.sdp,
           },
         );
 
         return;
+      }
+
+      if (
+        result.type === "icecandidate" &&
+        result.candidate &&
+        peerConnection
+      ) {
+        await peerConnection.addIceCandidate(
+          new RTCIceCandidate(
+            result.candidate,
+          ),
+        );
+
+        return;
+      }
+
+      if (
+        result.type === "ice-restart" &&
+        peerConnection
+      ) {
+        const turnConfig =
+          (
+            result as LucySignalResult & {
+              turn_config?: {
+                server_url?: string;
+                username?: string;
+                credential?: string;
+              };
+            }
+          ).turn_config;
+
+        if (turnConfig?.server_url) {
+          peerConnection.setConfiguration({
+            iceServers: [
+              {
+                urls:
+                  "stun:stun.l.google.com:19302",
+              },
+              {
+                urls:
+                  turnConfig.server_url,
+                username:
+                  turnConfig.username,
+                credential:
+                  turnConfig.credential,
+              },
+            ],
+          });
+        }
+
+        await createOffer();
+
+        return;
+      }
+
+      if (
+        result.type === "error"
+      ) {
+        onError(
+          new Error(
+            typeof result.error === "string"
+              ? result.error
+              : "Lucy realtime error.",
+          ),
+        );
+
+        return;
+      }
+
+      if (
+        result.type === "generation_started"
+      ) {
+        console.log(
+          "Lucy is producing transformed frames.",
+        );
+      }
+
+      if (
+        result.type === "prompt_ack"
+      ) {
+        const ack =
+          result as LucySignalResult & {
+            success?: boolean;
+          };
+
+        if (ack.success === false) {
+          onError(
+            new Error(
+              "Lucy rejected the prompt.",
+            ),
+          );
+        }
       }
     } catch (error) {
       console.error(
@@ -223,7 +368,8 @@ export function createLucyMediaSession(
 
       if (peerConnection) {
         peerConnection.ontrack = null;
-        peerConnection.onicecandidate = null;
+        peerConnection.onicecandidate =
+          null;
         peerConnection.onconnectionstatechange =
           null;
 
@@ -232,6 +378,12 @@ export function createLucyMediaSession(
       }
 
       outputVideo.srcObject = null;
+
+      try {
+        connection.close();
+      } catch {
+        // Ignore close errors.
+      }
     },
   };
 }
