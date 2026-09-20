@@ -11,13 +11,11 @@ export type LucyMediaSession = {
 };
 
 type LucySignalResult = {
-  type?: string;
   iceServers?: RTCIceServer[];
   iceservers?: RTCIceServer[];
-  ice_servers?: RTCIceServer[];
   candidate?: RTCIceCandidateInit | null;
   sdp?: string;
-  error?: unknown;
+  type?: RTCSdpType;
 };
 
 type LucyConnectionWithHandler = LucyConnection & {
@@ -72,36 +70,144 @@ export function createLucyMediaSession(
   onError: (error: unknown) => void,
 ): LucyMediaSession {
   let peerConnection: RTCPeerConnection | null = null;
-  let connected = false;
   let closed = false;
+  let offerStarted = false;
+
+  const pendingCandidates: RTCIceCandidateInit[] = [];
 
   const connectionWithHandler =
     connection as LucyConnectionWithHandler;
 
-  async function createOffer(): Promise<void> {
-    if (!peerConnection || closed) {
+  async function startWebRtc(
+    iceServers: RTCIceServer[],
+  ): Promise<void> {
+    if (closed) {
       return;
     }
 
-    try {
-      const offer =
-        await peerConnection.createOffer();
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+    }
 
-      await peerConnection.setLocalDescription(
-        offer,
+    peerConnection = new RTCPeerConnection({
+      iceServers,
+    });
+
+    peerConnection.ontrack = (event) => {
+      if (closed) {
+        return;
+      }
+
+      const [remoteStream] = event.streams;
+
+      if (!remoteStream) {
+        return;
+      }
+
+      outputVideo.srcObject = remoteStream;
+
+      void outputVideo
+        .play()
+        .then(() => {
+          onConnected();
+        })
+        .catch((error) => {
+          console.error(
+            "Lucy output video play error:",
+            error,
+          );
+
+          onConnected();
+        });
+    };
+
+    peerConnection.onicecandidate = (event) => {
+      if (closed || !event.candidate) {
+        return;
+      }
+
+      try {
+        connection.send({
+          candidate:
+            event.candidate.toJSON(),
+        });
+      } catch (error) {
+        onError(error);
+      }
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      if (!peerConnection || closed) {
+        return;
+      }
+
+      const state =
+        peerConnection.connectionState;
+
+      console.log(
+        "Lucy WebRTC connection state:",
+        state,
       );
 
-      connection.send({
-        type: "offer",
-        sdp: offer.sdp,
-      });
-    } catch (error) {
-      console.error(
-        "Lucy offer creation failed:",
-        error,
-      );
+      if (state === "connected") {
+        onConnected();
+      }
 
-      onError(error);
+      if (
+        state === "failed" ||
+        state === "closed"
+      ) {
+        onError(
+          new Error(
+            `Lucy WebRTC connection ${state}.`,
+          ),
+        );
+      }
+    };
+
+    for (const track of inputStream.getTracks()) {
+      peerConnection.addTrack(
+        track,
+        inputStream,
+      );
+    }
+
+    const offer =
+      await peerConnection.createOffer();
+
+    await peerConnection.setLocalDescription(
+      offer,
+    );
+
+    const localDescription =
+      peerConnection.localDescription;
+
+    if (!localDescription) {
+      throw new Error(
+        "Lucy WebRTC local description was not created.",
+      );
+    }
+
+    connection.send({
+      sdp: localDescription.sdp,
+      type: localDescription.type,
+    });
+
+    offerStarted = true;
+
+    if (pendingCandidates.length > 0) {
+      const candidates =
+        pendingCandidates.splice(
+          0,
+          pendingCandidates.length,
+        );
+
+      for (const candidate of candidates) {
+        await peerConnection.addIceCandidate(
+          candidate,
+        );
+      }
     }
   }
 
@@ -116,235 +222,51 @@ export function createLucyMediaSession(
       rawResult as LucySignalResult;
 
     try {
-      if (result.error) {
-        onError(
-          new Error(
-            typeof result.error === "string"
-              ? result.error
-              : "Lucy realtime server error.",
-          ),
-        );
-        return;
-      }
-
       const iceServers =
         result.iceServers ??
-        result.iceservers ??
-        result.ice_servers;
+        result.iceservers;
 
-      if (
-        result.type === "iceServers" ||
-        result.type === "iceservers" ||
-        iceServers
-      ) {
-        if (!iceServers) {
-          throw new Error(
-            "Lucy did not provide ICE servers.",
+      if (iceServers) {
+        if (!offerStarted) {
+          await startWebRtc(iceServers);
+        }
+
+        return;
+      }
+
+      if (result.candidate) {
+        if (!peerConnection) {
+          pendingCandidates.push(
+            result.candidate,
           );
+          return;
         }
 
-        if (peerConnection) {
-          peerConnection.close();
-        }
-
-        peerConnection =
-          new RTCPeerConnection({
-            iceServers,
-          });
-
-        peerConnection.ontrack = (
-          event,
-        ) => {
-          const remoteStream =
-            event.streams?.[0];
-
-          if (!remoteStream) {
-            return;
-          }
-
-          outputVideo.srcObject =
-            remoteStream;
-
-          void outputVideo
-            .play()
-            .then(() => {
-              if (!connected) {
-                connected = true;
-                onConnected();
-              }
-            })
-            .catch((error) => {
-              console.error(
-                "Lucy output video play error:",
-                error,
-              );
-
-              if (!connected) {
-                connected = true;
-                onConnected();
-              }
-            });
-        };
-
-        peerConnection.onicecandidate = (
-          event,
-        ) => {
-          if (!event.candidate) {
-            return;
-          }
-
-          connection.send({
-            type: "icecandidate",
-            candidate: {
-              candidate:
-                event.candidate.candidate,
-              sdpMid:
-                event.candidate.sdpMid,
-              sdpMLineIndex:
-                event.candidate.sdpMLineIndex,
-            },
-          });
-        };
-
-        peerConnection.onconnectionstatechange =
-          () => {
-            if (!peerConnection) {
-              return;
-            }
-
-            const state =
-              peerConnection.connectionState;
-
-            if (state === "failed") {
-              onError(
-                new Error(
-                  "Lucy WebRTC connection failed.",
-                ),
-              );
-            }
-
-            if (state === "closed") {
-              return;
-            }
-          };
-
-        for (const track of
-          inputStream.getTracks()) {
-          peerConnection.addTrack(
-            track,
-            inputStream,
-          );
-        }
-
-        await createOffer();
+        await peerConnection.addIceCandidate(
+          result.candidate,
+        );
 
         return;
       }
 
       if (
-        result.type === "answer" &&
         result.sdp &&
         peerConnection
       ) {
-        await peerConnection.setRemoteDescription(
-          {
-            type: "answer",
-            sdp: result.sdp,
-          },
-        );
+        const type =
+          result.type ?? "answer";
 
-        return;
-      }
-
-      if (
-        result.type === "icecandidate" &&
-        result.candidate &&
-        peerConnection
-      ) {
-        await peerConnection.addIceCandidate(
-          new RTCIceCandidate(
-            result.candidate,
-          ),
-        );
-
-        return;
-      }
-
-      if (
-        result.type === "ice-restart" &&
-        peerConnection
-      ) {
-        const turnConfig =
-          (
-            result as LucySignalResult & {
-              turn_config?: {
-                server_url?: string;
-                username?: string;
-                credential?: string;
-              };
-            }
-          ).turn_config;
-
-        if (turnConfig?.server_url) {
-          peerConnection.setConfiguration({
-            iceServers: [
-              {
-                urls:
-                  "stun:stun.l.google.com:19302",
-              },
-              {
-                urls:
-                  turnConfig.server_url,
-                username:
-                  turnConfig.username,
-                credential:
-                  turnConfig.credential,
-              },
-            ],
-          });
-        }
-
-        await createOffer();
-
-        return;
-      }
-
-      if (
-        result.type === "error"
-      ) {
-        onError(
-          new Error(
-            typeof result.error === "string"
-              ? result.error
-              : "Lucy realtime error.",
-          ),
-        );
-
-        return;
-      }
-
-      if (
-        result.type === "generation_started"
-      ) {
-        console.log(
-          "Lucy is producing transformed frames.",
-        );
-      }
-
-      if (
-        result.type === "prompt_ack"
-      ) {
-        const ack =
-          result as LucySignalResult & {
-            success?: boolean;
-          };
-
-        if (ack.success === false) {
-          onError(
-            new Error(
-              "Lucy rejected the prompt.",
-            ),
+        if (
+          !peerConnection.currentRemoteDescription
+        ) {
+          await peerConnection.setRemoteDescription(
+            {
+              type,
+              sdp: result.sdp,
+            },
           );
+
+          return;
         }
       }
     } catch (error) {
@@ -363,13 +285,14 @@ export function createLucyMediaSession(
   return {
     close: () => {
       closed = true;
+      offerStarted = false;
+      pendingCandidates.length = 0;
 
       delete connectionWithHandler.__lucySignalHandler;
 
       if (peerConnection) {
         peerConnection.ontrack = null;
-        peerConnection.onicecandidate =
-          null;
+        peerConnection.onicecandidate = null;
         peerConnection.onconnectionstatechange =
           null;
 
@@ -378,12 +301,6 @@ export function createLucyMediaSession(
       }
 
       outputVideo.srcObject = null;
-
-      try {
-        connection.close();
-      } catch {
-        // Ignore close errors.
-      }
     },
   };
 }
