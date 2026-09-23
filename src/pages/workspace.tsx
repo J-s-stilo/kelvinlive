@@ -192,9 +192,11 @@ export function AiObsPage() {
     useState(false);
 
   const [lucyBusy, setLucyBusy] = useState(false);
+  const [lucyConnecting, setLucyConnecting] =
+    useState(false);
 
   const [prompt, setPrompt] = useState(
-    "Replace the person in the live video with the person or character in the reference image. Make the reference character the visible person in the video while preserving the live person's body movement, gestures, head movement, facial performance, and speech. Keep the camera framing and background stable.",
+    "Replace the live person with the person or character shown in the reference image. Make the reference character the visible person while following the live person's movement, gestures, head movement, facial performance and speech. Preserve the camera framing and background. Keep the transformation stable and natural throughout the live video.",
   );
 
   const [recordingSeconds, setRecordingSeconds] =
@@ -202,12 +204,18 @@ export function AiObsPage() {
 
   useEffect(() => {
     return () => {
-      streamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
+      recorderRef.current?.stop();
 
       lucyMediaSessionRef.current?.close();
       lucyMediaSessionRef.current = null;
+
+      streamRef.current?.getTracks().forEach(
+        (track) => {
+          track.stop();
+        },
+      );
+
+      streamRef.current = null;
       lucyConnectionRef.current = null;
     };
   }, []);
@@ -219,17 +227,6 @@ export function AiObsPage() {
       }
     };
   }, [recordedUrl]);
-
-  useEffect(() => {
-    return () => {
-      if (
-        avatarUrl &&
-        avatarUrl.startsWith("blob:")
-      ) {
-        URL.revokeObjectURL(avatarUrl);
-      }
-    };
-  }, [avatarUrl]);
 
   useEffect(() => {
     if (!recording) {
@@ -245,17 +242,24 @@ export function AiObsPage() {
     };
   }, [recording]);
 
-  function formatRecordingTime(seconds: number): string {
+  function formatRecordingTime(
+    seconds: number,
+  ): string {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
 
-    return `${String(minutes).padStart(2, "0")}:${String(
-      remainingSeconds,
-    ).padStart(2, "0")}`;
+    return `${String(minutes).padStart(
+      2,
+      "0",
+    )}:${String(remainingSeconds).padStart(
+      2,
+      "0",
+    )}`;
   }
 
   async function startCamera(): Promise<void> {
     setCameraError("");
+    setLucyError("");
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError(
@@ -289,18 +293,33 @@ export function AiObsPage() {
       }
 
       if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = stream;
+        cameraVideoRef.current.srcObject =
+          stream;
+
         await cameraVideoRef.current.play();
       }
 
       if (outputVideoRef.current) {
-        outputVideoRef.current.srcObject = stream;
+        outputVideoRef.current.srcObject =
+          stream;
+
         await outputVideoRef.current
           .play()
           .catch(() => {});
       }
 
       setCameraActive(true);
+
+      /*
+       * If a reference image was already selected,
+       * automatically start Lucy as soon as the
+       * camera becomes available.
+       */
+      if (avatarUrl) {
+        window.setTimeout(() => {
+          startLucy();
+        }, 100);
+      }
     } catch (error) {
       console.error(error);
 
@@ -318,9 +337,11 @@ export function AiObsPage() {
     lucyMediaSessionRef.current?.close();
     lucyMediaSessionRef.current = null;
 
-    streamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    streamRef.current?.getTracks().forEach(
+      (track) => {
+        track.stop();
+      },
+    );
 
     streamRef.current = null;
 
@@ -336,6 +357,7 @@ export function AiObsPage() {
 
     setLucyConnected(false);
     setLucyBusy(false);
+    setLucyConnecting(false);
     setCameraActive(false);
   }
 
@@ -353,26 +375,76 @@ export function AiObsPage() {
     setMicEnabled(nextEnabled);
   }
 
-  function handleLucyResult(result: unknown): void {
-    const connection =
-      lucyConnectionRef.current as
-        | (ReturnType<typeof createLucyConnection> & {
-            __lucySignalHandler?: (
-              result: unknown,
-            ) => Promise<void>;
-          })
-        | null;
+  function handleLucyResult(
+    result: unknown,
+  ): void {
+    /*
+     * lucy.ts owns the WebRTC signaling.
+     * workspace.tsx only receives the connection
+     * state and transformed video callbacks.
+     */
+    const mediaSession =
+      lucyMediaSessionRef.current;
 
-    if (connection?.__lucySignalHandler) {
-      void connection.__lucySignalHandler(result);
+    if (
+      mediaSession &&
+      "handleSignal" in mediaSession &&
+      typeof (
+        mediaSession as LucyMediaSession & {
+          handleSignal?: (
+            result: unknown,
+          ) => void;
+        }
+      ).handleSignal === "function"
+    ) {
+      (
+        mediaSession as LucyMediaSession & {
+          handleSignal: (
+            result: unknown,
+          ) => void;
+        }
+      ).handleSignal(result);
+    }
+  }
+
+  function sendLucyInstruction(): void {
+    const connection =
+      lucyConnectionRef.current;
+
+    if (!connection) {
+      return;
+    }
+
+    try {
+      connection.send({
+        enable_prompt_expansion: true,
+        prompt:
+          prompt.trim() ||
+          "Transform the live person using the reference image while preserving live movement and speech.",
+        reference_image_url:
+          avatarUrl || undefined,
+      });
+    } catch (error) {
+      console.error(
+        "Lucy instruction error:",
+        error,
+      );
+
+      setLucyBusy(false);
+      setLucyError(
+        "Lucy could not apply the transformation.",
+      );
     }
   }
 
   function startLucy(): void {
     setLucyError("");
 
-    const inputStream = streamRef.current;
-    const outputVideo = outputVideoRef.current;
+    const inputStream =
+      streamRef.current;
+
+    const outputVideo =
+      outputVideoRef.current;
 
     if (!inputStream || !cameraActive) {
       setLucyError(
@@ -389,32 +461,43 @@ export function AiObsPage() {
     }
 
     if (lucyConnectionRef.current) {
+      if (avatarUrl) {
+        setLucyBusy(true);
+        sendLucyInstruction();
+      }
+
       return;
     }
 
     try {
       setLucyBusy(true);
+      setLucyConnecting(true);
 
-      const connection = createLucyConnection(
-        (result) => {
-          handleLucyResult(result);
-        },
-        (error) => {
-          console.error(
-            "Lucy 2.5 error:",
-            error,
-          );
+      const connection =
+        createLucyConnection(
+          (result) => {
+            handleLucyResult(result);
+          },
+          (error) => {
+            console.error(
+              "Lucy 2.5 error:",
+              error,
+            );
 
-          setLucyBusy(false);
-          setLucyConnected(false);
+            setLucyBusy(false);
+            setLucyConnecting(false);
+            setLucyConnected(false);
 
-          setLucyError(
-            "Lucy 2.5 could not establish the realtime connection.",
-          );
-        },
-      );
+            setLucyError(
+              error instanceof Error
+                ? error.message
+                : "Lucy 2.5 could not establish the realtime connection.",
+            );
+          },
+        );
 
-      lucyConnectionRef.current = connection;
+      lucyConnectionRef.current =
+        connection;
 
       const mediaSession =
         createLucyMediaSession(
@@ -423,6 +506,7 @@ export function AiObsPage() {
           outputVideo,
           () => {
             setLucyBusy(false);
+            setLucyConnecting(false);
             setLucyConnected(true);
           },
           (error) => {
@@ -432,10 +516,13 @@ export function AiObsPage() {
             );
 
             setLucyBusy(false);
+            setLucyConnecting(false);
             setLucyConnected(false);
 
             setLucyError(
-              "Lucy 2.5 could not establish the video connection.",
+              error instanceof Error
+                ? error.message
+                : "Lucy 2.5 could not establish the video connection.",
             );
           },
         );
@@ -446,7 +533,8 @@ export function AiObsPage() {
       connection.send({
         enable_prompt_expansion: true,
         prompt:
-          prompt.trim() || undefined,
+          prompt.trim() ||
+          "Transform the live person using the reference image while preserving live movement and speech.",
         reference_image_url:
           avatarUrl || undefined,
       });
@@ -459,9 +547,12 @@ export function AiObsPage() {
 
       setLucyConnected(false);
       setLucyBusy(false);
+      setLucyConnecting(false);
 
       setLucyError(
-        "Lucy 2.5 could not start. Check your FAL configuration and try again.",
+        error instanceof Error
+          ? error.message
+          : "Lucy 2.5 could not start. Check your FAL configuration and try again.",
       );
     }
   }
@@ -469,39 +560,32 @@ export function AiObsPage() {
   function applyLucyPrompt(): void {
     setLucyError("");
 
-    const connection =
-      lucyConnectionRef.current;
+    if (!cameraActive) {
+      setLucyError(
+        "Start the camera first.",
+      );
+      return;
+    }
 
-    if (!connection) {
+    if (!lucyConnectionRef.current) {
       startLucy();
       return;
     }
 
-    try {
-      setLucyBusy(true);
-
-      connection.send({
-        enable_prompt_expansion: true,
-        prompt:
-          prompt.trim() || undefined,
-        reference_image_url:
-          avatarUrl || undefined,
-      });
-    } catch (error) {
-      console.error(error);
-
-      setLucyBusy(false);
-
-      setLucyError(
-        "Lucy could not update the transformation prompt.",
-      );
-    }
+    setLucyBusy(true);
+    sendLucyInstruction();
   }
 
   function startRecording(): void {
     setRecordingError("");
 
-    if (!streamRef.current) {
+    const outputVideo =
+      outputVideoRef.current;
+
+    const cameraStream =
+      streamRef.current;
+
+    if (!cameraStream) {
       setRecordingError(
         "Start the camera before starting a recording.",
       );
@@ -517,6 +601,40 @@ export function AiObsPage() {
 
     try {
       recordedChunksRef.current = [];
+
+      /*
+       * Prefer the transformed Lucy video.
+       * If Lucy is not connected yet, fall back
+       * to the camera stream.
+       */
+      let recordingStream: MediaStream;
+
+      if (
+        lucyConnected &&
+        outputVideo &&
+        typeof outputVideo.captureStream ===
+          "function"
+      ) {
+        recordingStream =
+          outputVideo.captureStream();
+
+        const audioTrack =
+          cameraStream.getAudioTracks()[0];
+
+        if (
+          audioTrack &&
+          !recordingStream
+            .getAudioTracks()
+            .length
+        ) {
+          recordingStream.addTrack(
+            audioTrack,
+          );
+        }
+      } else {
+        recordingStream =
+          cameraStream;
+      }
 
       let mimeType = "";
 
@@ -544,13 +662,13 @@ export function AiObsPage() {
 
       const recorder = mimeType
         ? new MediaRecorder(
-            streamRef.current,
+            recordingStream,
             {
               mimeType,
             },
           )
         : new MediaRecorder(
-            streamRef.current,
+            recordingStream,
           );
 
       recorder.ondataavailable = (
@@ -603,6 +721,7 @@ export function AiObsPage() {
       };
 
       recorderRef.current = recorder;
+
       recorder.start(250);
 
       setRecordingSeconds(0);
@@ -635,13 +754,15 @@ export function AiObsPage() {
   async function handleAvatarChange(
     event: ChangeEvent<HTMLInputElement>,
   ): Promise<void> {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
     setRecordingError("");
+    setLucyError("");
 
     if (!file.type.startsWith("image/")) {
       setRecordingError(
@@ -724,7 +845,46 @@ export function AiObsPage() {
         return;
       }
 
+      /*
+       * Lucy 2.5 accepts Base64 data URIs for
+       * reference images. This avoids the old
+       * invalid blob: URL problem.
+       */
       setAvatarUrl(dataUrl);
+
+      /*
+       * Automatic transformation:
+       * if the camera is already running, selecting
+       * the reference image immediately starts Lucy
+       * or updates the current Lucy session.
+       */
+      if (cameraActive) {
+        window.setTimeout(() => {
+          if (lucyConnectionRef.current) {
+            setLucyBusy(true);
+
+            try {
+              lucyConnectionRef.current.send({
+                enable_prompt_expansion: true,
+                prompt:
+                  prompt.trim() ||
+                  "Replace the live person with the person or character in the reference image while preserving live movement, facial performance and speech.",
+                reference_image_url:
+                  dataUrl,
+              });
+            } catch (error) {
+              console.error(error);
+
+              setLucyBusy(false);
+              setLucyError(
+                "Lucy could not apply the selected reference image.",
+              );
+            }
+          } else {
+            startLucy();
+          }
+        }, 50);
+      }
     } catch (error) {
       console.error(
         "Reference image error:",
@@ -744,6 +904,21 @@ export function AiObsPage() {
 
     if (avatarInputRef.current) {
       avatarInputRef.current.value = "";
+    }
+
+    if (lucyConnectionRef.current) {
+      setLucyBusy(true);
+
+      try {
+        lucyConnectionRef.current.send({
+          enable_prompt_expansion: true,
+          prompt:
+            "Return to the live person's natural appearance while preserving the live camera movement, face, body movement and speech.",
+        });
+      } catch (error) {
+        console.error(error);
+        setLucyBusy(false);
+      }
     }
   }
 
@@ -841,14 +1016,18 @@ export function AiObsPage() {
                 className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[.68rem] font-bold ${
                   lucyConnected
                     ? "border-violet-300/20 bg-violet-300/[.06] text-violet-200"
-                    : "border-white/10 bg-white/[.03] text-slate-500"
+                    : lucyConnecting
+                      ? "border-amber-300/20 bg-amber-300/[.06] text-amber-200"
+                      : "border-white/10 bg-white/[.03] text-slate-500"
                 }`}
               >
                 <Sparkles size={13} />
 
                 {lucyConnected
                   ? "Lucy connected"
-                  : "Lucy offline"}
+                  : lucyConnecting
+                    ? "Lucy connecting"
+                    : "Lucy offline"}
               </span>
             </div>
           </div>
@@ -914,11 +1093,15 @@ export function AiObsPage() {
                         />
 
                         <p className="mt-3 text-sm font-semibold text-slate-400">
-                          AI output waiting
+                          {lucyConnecting
+                            ? "Connecting Lucy 2.5..."
+                            : "AI output waiting"}
                         </p>
 
                         <p className="mt-1 text-xs leading-5 text-slate-600">
-                          Start the camera, then connect Lucy 2.5.
+                          {lucyConnecting
+                            ? "Establishing the live AI video connection."
+                            : "Start the camera and choose a reference image to begin."}
                         </p>
                       </div>
                     </div>
@@ -1004,20 +1187,22 @@ export function AiObsPage() {
                 : "Unmute mic"}
             </button>
 
-            {!lucyConnectionRef.current ? (
+            {!lucyConnectionRef.current &&
+            !lucyConnected ? (
               <button
                 type="button"
                 onClick={startLucy}
                 disabled={
                   !cameraActive ||
-                  lucyBusy
+                  lucyBusy ||
+                  lucyConnecting
                 }
                 className="flex items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-300/[.06] px-4 py-3 text-sm font-bold text-violet-200 hover:bg-violet-300/[.12] disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="button-connect-lucy"
               >
                 <Sparkles size={16} />
 
-                {lucyBusy
+                {lucyConnecting
                   ? "Connecting..."
                   : "Connect Lucy 2.5"}
               </button>
@@ -1032,7 +1217,9 @@ export function AiObsPage() {
                 data-testid="button-start-recording"
               >
                 <span className="size-2.5 rounded-full bg-rose-300" />
-                Record
+                {lucyConnected
+                  ? "Record AI output"
+                  : "Record"}
               </button>
             ) : (
               <button
@@ -1102,7 +1289,7 @@ export function AiObsPage() {
             <WorkflowStep
               number="02"
               title="Lucy 2.5"
-              text="Send the camera stream through the realtime AI transformation."
+              text="Transform the live camera using the selected reference and prompt."
             />
 
             <WorkflowStep
@@ -1178,9 +1365,36 @@ export function AiObsPage() {
                     "natural",
                   );
 
-                  setPrompt(
-                    "Replace the person in the live video with the person or character in the reference image. Preserve the reference character's appearance while following the live person's body movement, gestures, head movement, facial performance, and speech.",
-                  );
+                  const nextPrompt =
+                    "Replace the live person with the person or character in the reference image. Make the reference character the visible person while following the live person's body movement, gestures, head movement, facial performance and speech. Preserve the camera framing and background.";
+
+                  setPrompt(nextPrompt);
+
+                  if (
+                    lucyConnectionRef.current &&
+                    avatarUrl
+                  ) {
+                    setLucyBusy(true);
+
+                    try {
+                      lucyConnectionRef.current.send(
+                        {
+                          enable_prompt_expansion:
+                            true,
+                          prompt:
+                            nextPrompt,
+                          reference_image_url:
+                            avatarUrl,
+                        },
+                      );
+                    } catch (error) {
+                      console.error(error);
+                      setLucyBusy(false);
+                      setLucyError(
+                        "Lucy could not update the character transformation.",
+                      );
+                    }
+                  }
                 }}
                 className={`rounded-xl border p-4 text-left transition ${
                   selectedLook ===
@@ -1206,9 +1420,36 @@ export function AiObsPage() {
                     "aurora",
                   );
 
-                  setPrompt(
-                    "Replace the person in the live video with the person or character in the reference image. Preserve the character's appearance and make the character follow the live person's full-body movement, gestures, head movement, facial performance, and speech, with a cinematic aurora-inspired atmosphere.",
-                  );
+                  const nextPrompt =
+                    "Replace the live person with the person or character in the reference image. Make the reference character the visible person while following the live person's full-body movement, gestures, head movement, facial performance and speech. Preserve the character appearance and camera framing with a cinematic aurora-inspired atmosphere.";
+
+                  setPrompt(nextPrompt);
+
+                  if (
+                    lucyConnectionRef.current &&
+                    avatarUrl
+                  ) {
+                    setLucyBusy(true);
+
+                    try {
+                      lucyConnectionRef.current.send(
+                        {
+                          enable_prompt_expansion:
+                            true,
+                          prompt:
+                            nextPrompt,
+                          reference_image_url:
+                            avatarUrl,
+                        },
+                      );
+                    } catch (error) {
+                      console.error(error);
+                      setLucyBusy(false);
+                      setLucyError(
+                        "Lucy could not update the character transformation.",
+                      );
+                    }
+                  }
                 }}
                 className={`rounded-xl border p-4 text-left transition ${
                   selectedLook ===
@@ -1250,7 +1491,7 @@ export function AiObsPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Use an image as the Lucy character reference.
+                  Choose the character Lucy should put into the live video.
                 </p>
               </div>
 
@@ -1262,12 +1503,18 @@ export function AiObsPage() {
 
             {avatarUrl ? (
               <div className="mt-5">
-                <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+                <div className="overflow-hidden rounded-xl border border-violet-300/20 bg-black">
                   <img
                     src={avatarUrl}
                     alt="Selected reference"
                     className="aspect-square w-full object-cover"
                   />
+                </div>
+
+                <div className="mt-3 rounded-xl border border-violet-300/20 bg-violet-300/[.05] p-3 text-xs text-violet-200">
+                  {lucyConnected
+                    ? "Reference active — Lucy is transforming the live video."
+                    : "Reference selected — Lucy will start automatically when the camera is running."}
                 </div>
 
                 <button
@@ -1301,7 +1548,7 @@ export function AiObsPage() {
                 </span>
 
                 <span className="mt-1 text-xs text-slate-600">
-                  PNG, JPG or WEBP • 512×512 minimum for character swap
+                  PNG, JPG or WEBP • 512×512 minimum
                 </span>
               </button>
             )}
@@ -1788,12 +2035,8 @@ export function SettingsPage() {
                 className="mt-2 w-full rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300"
                 data-testid="select-default-resolution"
               >
-                <option>
-                  1080p
-                </option>
-                <option>
-                  720p
-                </option>
+                <option>1080p</option>
+                <option>720p</option>
               </select>
             </label>
           </div>
