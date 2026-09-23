@@ -1,6 +1,9 @@
 import {
+  LogOut,
   Menu,
   MessageCircle,
+  Shield,
+  User,
   X,
 } from "lucide-react";
 import {
@@ -24,6 +27,29 @@ export function StudioShell({
 }: StudioShellProps) {
   const [location] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+
+  function openSupport(): void {
+    window.open(
+      "https://wa.me/2347078448084",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  function openFeedback(): void {
+    window.location.href = "/feedback";
+  }
+
+  function handleLogout(): void {
+    /*
+     * Authentication logout will be connected to
+     * the real Clerk session in the account step.
+     *
+     * For now we only close the account menu.
+     */
+    setAccountOpen(false);
+  }
 
   return (
     <div
@@ -43,7 +69,9 @@ export function StudioShell({
 
         <aside
           className={`fixed inset-y-0 left-0 z-30 flex w-[270px] flex-col border-r border-white/[.09] bg-[#0b101a] px-5 py-6 transition-transform duration-300 lg:static lg:translate-x-0 ${
-            drawerOpen ? "translate-x-0" : "-translate-x-full"
+            drawerOpen
+              ? "translate-x-0"
+              : "-translate-x-full"
           }`}
           data-testid="studio-sidebar"
         >
@@ -67,13 +95,21 @@ export function StudioShell({
             </p>
 
             {navItems.map(
-              ({ href, label, icon: Icon }) => (
+              ({
+                href,
+                label,
+                icon: Icon,
+              }) => (
                 <Link
                   key={href}
                   href={href}
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={() =>
+                    setDrawerOpen(false)
+                  }
                   className={`nav-item flex items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-sm font-semibold text-slate-400 hover:text-slate-100 ${
-                    location === href ? "active" : ""
+                    location === href
+                      ? "active"
+                      : ""
                   }`}
                   data-testid={`link-nav-${label
                     .toLowerCase()
@@ -100,45 +136,106 @@ export function StudioShell({
             </p>
 
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              The creator team is online.
+              Contact KelvinLive customer support.
             </p>
 
             <button
               type="button"
+              onClick={openSupport}
               className="mt-3 flex items-center gap-2 text-xs font-bold text-cyan-300 hover:text-cyan-200"
               data-testid="button-open-support"
             >
               <MessageCircle size={15} />
-              Open support
+              Customer support
             </button>
           </div>
 
-          <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-5">
-            <div className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-400 to-cyan-300 text-sm font-bold text-slate-950">
-              AM
-            </div>
+          <div className="relative mt-5 border-t border-white/10 pt-5">
+            {accountOpen ? (
+              <div className="absolute bottom-full left-0 right-0 mb-3 overflow-hidden rounded-2xl border border-white/10 bg-[#111827] shadow-2xl">
+                <Link
+                  href="/settings"
+                  onClick={() =>
+                    setAccountOpen(false)
+                  }
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-white/[.06] hover:text-white"
+                >
+                  <User size={16} />
+                  Profile & account
+                </Link>
 
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold">
-                Ari Mendez
-              </p>
+                <Link
+                  href="/settings"
+                  onClick={() =>
+                    setAccountOpen(false)
+                  }
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-300 hover:bg-white/[.06] hover:text-white"
+                >
+                  <Shield size={16} />
+                  Security & password
+                </Link>
 
-              <p className="text-xs text-slate-500">
-                Creator account
-              </p>
-            </div>
+                <button
+                  type="button"
+                  onClick={openFeedback}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[.06] hover:text-white"
+                >
+                  <MessageCircle size={16} />
+                  Feedback
+                </button>
 
-            <Link
-              href="/settings"
-              className="ml-auto text-slate-500 hover:text-white"
-              aria-label="Open settings"
-              data-testid="link-sidebar-settings"
+                <button
+                  type="button"
+                  onClick={openSupport}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 hover:bg-white/[.06] hover:text-white"
+                >
+                  <MessageCircle size={16} />
+                  Customer support
+                </button>
+
+                <div className="border-t border-white/10" />
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-rose-300 hover:bg-rose-300/[.06]"
+                  data-testid="button-logout"
+                >
+                  <LogOut size={16} />
+                  Log out
+                </button>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() =>
+                setAccountOpen(
+                  (open) => !open,
+                )
+              }
+              className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-white/[.04]"
+              aria-expanded={accountOpen}
+              data-testid="button-account-menu"
             >
-              <span className="sr-only">
-                Settings
+              <div className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[.05] text-slate-400">
+                <User size={17} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-slate-300">
+                  Your account
+                </p>
+
+                <p className="text-xs text-slate-500">
+                  Account settings
+                </p>
+              </div>
+
+              <span className="text-xs text-slate-500">
+                •••
               </span>
-              •••
-            </Link>
+            </button>
           </div>
         </aside>
 
@@ -147,7 +244,9 @@ export function StudioShell({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setDrawerOpen(true)}
+                onClick={() =>
+                  setDrawerOpen(true)
+                }
                 className="rounded-xl border border-white/10 bg-white/[.04] p-2.5 text-slate-300 lg:hidden"
                 aria-label="Open navigation"
                 data-testid="button-open-navigation"
@@ -162,8 +261,10 @@ export function StudioShell({
               <div className="hidden lg:block">
                 <p className="text-sm font-bold">
                   {navItems.find(
-                    (item) => item.href === location,
-                  )?.label || "Workspace"}
+                    (item) =>
+                      item.href === location,
+                  )?.label ||
+                    "Workspace"}
                 </p>
 
                 <p className="text-xs text-slate-500">
@@ -179,10 +280,10 @@ export function StudioShell({
               </div>
 
               <div
-                className="rounded-full border border-violet-300/20 bg-violet-300/[.06] px-3 py-1.5 font-mono text-xs text-violet-200"
+                className="rounded-full border border-white/10 bg-white/[.03] px-3 py-1.5 text-xs font-semibold text-slate-500"
                 data-testid="text-credit-balance"
               >
-                18 cr
+                Credits not connected
               </div>
             </div>
           </header>
