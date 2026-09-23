@@ -5,6 +5,7 @@ import {
   CreditCard,
   FileText,
   Layers3,
+  MessageCircle,
   Radio,
   Settings,
   Sparkles,
@@ -21,6 +22,11 @@ export const navItems = [
     href: "/feed",
     label: "Feed",
     icon: Users,
+  },
+  {
+    href: "/feedback",
+    label: "Feedback",
+    icon: MessageCircle,
   },
   {
     href: "/ai-obs",
@@ -58,107 +64,66 @@ export const featureCards = [
   {
     icon: Sparkles,
     title: "AI looks, on cue",
-    text: "Shift your visual identity mid-stream without a render farm or a second window.",
+    text: "AI transformation will be connected when the transformation service is ready.",
   },
   {
     icon: Radio,
     title: "One-click studio",
-    text: "Camera, mic, scene, and stream controls stay in one calm, focused workspace.",
+    text: "Camera, microphone, scene, and stream controls stay together in one workspace.",
   },
   {
     icon: Layers3,
     title: "OBS when ready",
-    text: "Take a private Browser Source into the tools you already know and trust.",
+    text: "Prepare a Browser Source for your production workflow.",
   },
 ];
 
 export const faqItems = [
   [
     "Do I need a download?",
-    "No. LumaLive runs in your browser. Allow camera and microphone access, choose your output, and you are ready to rehearse or go live.",
+    "No. KelvinLive is designed to run in your browser.",
   ],
   [
-    "Can I stream without using AI?",
-    "Absolutely. Natural camera streaming is the default and does not spend credits. AI looks are always an intentional switch.",
+    "Can I stream without AI?",
+    "Yes. Natural camera streaming works without AI transformation.",
   ],
   [
     "Is my stream public immediately?",
-    "You control the moment. Preview is private, and the audience panel explains exactly what becomes discoverable when you go live.",
+    "No. You control when a session becomes live.",
   ],
   [
     "Can I use OBS?",
-    "Yes. AI & OBS gives you a private Browser Source URL for OBS, Zoom, Meet, and other production tools.",
+    "Yes. The studio can provide a Browser Source for your production setup.",
   ],
 ];
 
 export const creatorStats = [
   {
-    value: "1280×720",
-    label: "crisp output",
+    value: "Live",
+    label: "studio",
   },
   {
-    value: "<1s",
-    label: "preview latency",
+    value: "AI",
+    label: "transformation",
   },
   {
-    value: "24/7",
-    label: "cloud studio",
+    value: "OBS",
+    label: "production",
   },
 ];
 
-export const activity = [
-  {
-    title: "Studio rehearsal",
-    time: "Today · 10:42",
-    detail: "Camera setup · 18 min",
-    color: "cyan",
-  },
-  {
-    title: "A quiet morning",
-    time: "Yesterday · 08:15",
-    detail: "Natural look · 42 viewers",
-    color: "violet",
-  },
-  {
-    title: "OBS test scene",
-    time: "Mon · 19:05",
-    detail: "Browser Source · 12 min",
-    color: "amber",
-  },
-];
+export const activity: Array<{
+  title: string;
+  time: string;
+  detail: string;
+  color: string;
+}> = [];
 
-export const transactions = [
-  {
-    date: "16 Sep 2026",
-    item: "Creator plan",
-    amount: "− 12 credits",
-    status: "Completed",
-  },
-  {
-    date: "12 Sep 2026",
-    item: "Credit top-up",
-    amount: "+ 40 credits",
-    status: "Completed",
-  },
-  {
-    date: "02 Sep 2026",
-    item: "AI look · Aurora",
-    amount: "− 4 credits",
-    status: "Completed",
-  },
-];
+export const transactions: Array<{
+  date: string;
+  item: string;
+  amount: string;
+  status: string;
+}> = [];
 
-export const analyticsBars = [
-  28,
-  42,
-  35,
-  58,
-  48,
-  72,
-  66,
-  84,
-  62,
-  76,
-  91,
-  73,
-];
+export const analyticsBars: number[] = [];
