@@ -11,6 +11,7 @@ import { StudioShell } from "@/components/studio-shell";
 import Landing from "@/pages/landing";
 import Auth from "@/pages/auth";
 import Studio from "@/pages/studio";
+import { FeedbackPage } from "@/pages/FeedbackPage";
 import {
   AiObsPage,
   AnalyticsPage,
@@ -38,6 +39,12 @@ function Router() {
         <Route path="/feed">
           <StudioShell>
             <FeedPage />
+          </StudioShell>
+        </Route>
+
+        <Route path="/feedback">
+          <StudioShell>
+            <FeedbackPage />
           </StudioShell>
         </Route>
 
@@ -83,14 +90,25 @@ function Router() {
   );
 }
 
-function RoutedErrorBoundary({ children }: { children: ReactNode }) {
+function RoutedErrorBoundary({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [location] = useLocation();
 
-  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+  return (
+    <ErrorBoundary resetKey={location}>
+      {children}
+    </ErrorBoundary>
+  );
 }
 
 function App() {
-  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const basePath = import.meta.env.BASE_URL.replace(
+    /\/$/,
+    "",
+  );
 
   return (
     <WouterRouter base={basePath}>
