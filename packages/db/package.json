@@ -1,22 +1,18 @@
 {
-  "name": "@workspace/db",
-  "version": "1.0.0",
-  "private": true,
-  "type": "commonjs",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "db:push": "drizzle-kit push"
-  },
-  "dependencies": {
-    "drizzle-orm": "^0.38.4",
-    "pg": "^8.13.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.5",
-    "@types/pg": "^8.11.10",
-    "drizzle-kit": "^0.30.2",
-    "typescript": "^5.7.3"
-  }
+"name": "@workspace/db",
+"version": "1.0.0",
+"private": true,
+"type": "module",
+"scripts": {
+"build": "tsc"
+},
+"dependencies": {
+"drizzle-orm": "^0.38.4",
+"pg": "^8.13.1"
+},
+"devDependencies": {
+"drizzle-kit": "^0.30.4",
+"typescript": "^5.7.3",
+"@types/pg": "^8.11.10"
+}
 }
