@@ -16,6 +16,7 @@ import {
   Square,
   TrendingUp,
   Upload,
+  User,
   Video,
   VideoOff,
 } from "lucide-react";
@@ -37,6 +38,10 @@ import {
   createLucyMediaSession,
   type LucyMediaSession,
 } from "@/lib/lucy";
+
+/* -------------------------------------------------------------------------- */
+/* FEED                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export function FeedPage() {
   const [following, setFollowing] = useState<number[]>([]);
@@ -151,6 +156,10 @@ export function FeedPage() {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* AI OBS / FULL BODY TRANSFORMATION                                          */
+/* -------------------------------------------------------------------------- */
+
 export function AiObsPage() {
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const outputVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -204,15 +213,19 @@ export function AiObsPage() {
 
   useEffect(() => {
     return () => {
-      recorderRef.current?.stop();
+      if (recorderRef.current) {
+        try {
+          recorderRef.current.stop();
+        } catch {
+          // Recorder may already be inactive.
+        }
+      }
 
       lucyMediaSessionRef.current?.close();
       lucyMediaSessionRef.current = null;
 
       streamRef.current?.getTracks().forEach(
-        (track) => {
-          track.stop();
-        },
+        (track) => track.stop(),
       );
 
       streamRef.current = null;
@@ -310,11 +323,6 @@ export function AiObsPage() {
 
       setCameraActive(true);
 
-      /*
-       * If a reference image was already selected,
-       * automatically start Lucy as soon as the
-       * camera becomes available.
-       */
       if (avatarUrl) {
         window.setTimeout(() => {
           startLucy();
@@ -338,9 +346,7 @@ export function AiObsPage() {
     lucyMediaSessionRef.current = null;
 
     streamRef.current?.getTracks().forEach(
-      (track) => {
-        track.stop();
-      },
+      (track) => track.stop(),
     );
 
     streamRef.current = null;
@@ -378,11 +384,6 @@ export function AiObsPage() {
   function handleLucyResult(
     result: unknown,
   ): void {
-    /*
-     * lucy.ts owns the WebRTC signaling.
-     * workspace.tsx only receives the connection
-     * state and transformed video callbacks.
-     */
     const mediaSession =
       lucyMediaSessionRef.current;
 
@@ -602,11 +603,6 @@ export function AiObsPage() {
     try {
       recordedChunksRef.current = [];
 
-      /*
-       * Prefer the transformed Lucy video.
-       * If Lucy is not connected yet, fall back
-       * to the camera stream.
-       */
       let recordingStream: MediaStream;
 
       if (
@@ -845,19 +841,8 @@ export function AiObsPage() {
         return;
       }
 
-      /*
-       * Lucy 2.5 accepts Base64 data URIs for
-       * reference images. This avoids the old
-       * invalid blob: URL problem.
-       */
       setAvatarUrl(dataUrl);
 
-      /*
-       * Automatic transformation:
-       * if the camera is already running, selecting
-       * the reference image immediately starts Lucy
-       * or updates the current Lucy session.
-       */
       if (cameraActive) {
         window.setTimeout(() => {
           if (lucyConnectionRef.current) {
@@ -951,7 +936,7 @@ export function AiObsPage() {
 
     anchor.href = recordedUrl;
     anchor.download =
-      `lumalive-recording-${Date.now()}.webm`;
+      `kelvinlive-recording-${Date.now()}.webm`;
 
     anchor.click();
   }
@@ -988,7 +973,6 @@ export function AiObsPage() {
                 ) : (
                   <VideoOff size={13} />
                 )}
-
                 {cameraActive
                   ? "Camera on"
                   : "Camera off"}
@@ -1006,7 +990,6 @@ export function AiObsPage() {
                 ) : (
                   <MicOff size={13} />
                 )}
-
                 {micEnabled
                   ? "Mic on"
                   : "Mic off"}
@@ -1361,9 +1344,7 @@ export function AiObsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedLook(
-                    "natural",
-                  );
+                  setSelectedLook("natural");
 
                   const nextPrompt =
                     "Replace the live person with the person or character in the reference image. Make the reference character the visible person while following the live person's body movement, gestures, head movement, facial performance and speech. Preserve the camera framing and background.";
@@ -1377,16 +1358,13 @@ export function AiObsPage() {
                     setLucyBusy(true);
 
                     try {
-                      lucyConnectionRef.current.send(
-                        {
-                          enable_prompt_expansion:
-                            true,
-                          prompt:
-                            nextPrompt,
-                          reference_image_url:
-                            avatarUrl,
-                        },
-                      );
+                      lucyConnectionRef.current.send({
+                        enable_prompt_expansion:
+                          true,
+                        prompt: nextPrompt,
+                        reference_image_url:
+                          avatarUrl,
+                      });
                     } catch (error) {
                       console.error(error);
                       setLucyBusy(false);
@@ -1397,8 +1375,7 @@ export function AiObsPage() {
                   }
                 }}
                 className={`rounded-xl border p-4 text-left transition ${
-                  selectedLook ===
-                  "natural"
+                  selectedLook === "natural"
                     ? "border-cyan-300/50 bg-cyan-300/[.10]"
                     : "border-white/10 bg-white/[.02]"
                 }`}
@@ -1416,9 +1393,7 @@ export function AiObsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedLook(
-                    "aurora",
-                  );
+                  setSelectedLook("aurora");
 
                   const nextPrompt =
                     "Replace the live person with the person or character in the reference image. Make the reference character the visible person while following the live person's full-body movement, gestures, head movement, facial performance and speech. Preserve the character appearance and camera framing with a cinematic aurora-inspired atmosphere.";
@@ -1432,16 +1407,13 @@ export function AiObsPage() {
                     setLucyBusy(true);
 
                     try {
-                      lucyConnectionRef.current.send(
-                        {
-                          enable_prompt_expansion:
-                            true,
-                          prompt:
-                            nextPrompt,
-                          reference_image_url:
-                            avatarUrl,
-                        },
-                      );
+                      lucyConnectionRef.current.send({
+                        enable_prompt_expansion:
+                          true,
+                        prompt: nextPrompt,
+                        reference_image_url:
+                          avatarUrl,
+                      });
                     } catch (error) {
                       console.error(error);
                       setLucyBusy(false);
@@ -1452,8 +1424,7 @@ export function AiObsPage() {
                   }
                 }}
                 className={`rounded-xl border p-4 text-left transition ${
-                  selectedLook ===
-                  "aurora"
+                  selectedLook === "aurora"
                     ? "border-violet-300/50 bg-violet-300/[.10]"
                     : "border-white/10 bg-white/[.02]"
                 }`}
@@ -1475,8 +1446,7 @@ export function AiObsPage() {
               </p>
 
               <p className="mt-2 text-sm font-bold text-cyan-200">
-                {selectedLook ===
-                "natural"
+                {selectedLook === "natural"
                   ? "Natural character swap"
                   : "Cinematic character"}
               </p>
@@ -1558,9 +1528,7 @@ export function AiObsPage() {
               type="file"
               accept="image/png,image/jpeg,image/webp"
               className="hidden"
-              onChange={
-                handleAvatarChange
-              }
+              onChange={handleAvatarChange}
               data-testid="input-avatar-upload"
             />
           </div>
@@ -1608,42 +1576,41 @@ export function AiObsPage() {
   );
 }
 
-export function AnalyticsPage() {
-  const metrics = [
-    ["Total live time", "14h 28m", "+18%"],
-    ["Peak audience", "84 viewers", "+12"],
-    ["Sessions", "23", "+4"],
-  ];
+/* -------------------------------------------------------------------------- */
+/* ANALYTICS                                                                  */
+/* -------------------------------------------------------------------------- */
 
+export function AnalyticsPage() {
   return (
     <PageIntro
       eyebrow="Your signal"
       title="Know what lands."
-      description="A lightweight view of your recent sessions and audience rhythm."
+      description="Your real session analytics will appear here as the API and stream-session system are connected."
     >
       <div className="grid gap-4 sm:grid-cols-3">
-        {metrics.map(
-          ([label, value, change], index) => (
-            <div
-              className="panel rounded-2xl p-5"
-              key={label}
-              data-testid={`metric-analytics-${index}`}
-            >
-              <p className="text-sm text-slate-500">
-                {label}
-              </p>
+        {[
+          "Total live time",
+          "Peak audience",
+          "Sessions",
+        ].map((label, index) => (
+          <div
+            className="panel rounded-2xl p-5"
+            key={label}
+            data-testid={`metric-analytics-${index}`}
+          >
+            <p className="text-sm text-slate-500">
+              {label}
+            </p>
 
-              <p className="mt-3 font-mono text-2xl text-slate-100">
-                {value}
-              </p>
+            <p className="mt-3 text-2xl font-bold text-slate-300">
+              Awaiting data
+            </p>
 
-              <p className="mt-2 flex items-center gap-1 text-xs text-emerald-300">
-                <TrendingUp size={13} />
-                {change} this month
-              </p>
-            </div>
-          ),
-        )}
+            <p className="mt-2 text-xs text-slate-600">
+              Real account analytics will appear here.
+            </p>
+          </div>
+        ))}
       </div>
 
       <div className="panel mt-5 rounded-2xl p-6">
@@ -1654,7 +1621,7 @@ export function AnalyticsPage() {
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Last 12 sessions
+              Real stream-session analytics
             </p>
           </div>
 
@@ -1672,7 +1639,7 @@ export function AnalyticsPage() {
                 key={index}
               >
                 <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-violet-400/70 to-cyan-300"
+                  className="w-full rounded-t-md bg-gradient-to-t from-violet-400/30 to-cyan-300/30"
                   style={{
                     height: `${height}%`,
                   }}
@@ -1686,6 +1653,10 @@ export function AnalyticsPage() {
             ),
           )}
         </div>
+
+        <p className="mt-5 text-xs text-slate-600">
+          Chart values are currently visual placeholders and will be replaced by real stream-session data.
+        </p>
       </div>
 
       <div className="panel mt-5 rounded-2xl p-6">
@@ -1693,50 +1664,24 @@ export function AnalyticsPage() {
           Recent sessions
         </h2>
 
-        <div className="mt-4 divide-y divide-white/10">
-          {activity.map((item) => (
-            <div
-              className="flex items-center gap-4 py-4"
-              key={item.title}
-            >
-              <span
-                className={`size-2 rounded-full ${
-                  item.color === "cyan"
-                    ? "bg-cyan-300"
-                    : item.color ===
-                        "violet"
-                      ? "bg-violet-300"
-                      : "bg-amber-300"
-                }`}
-              />
-
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">
-                  {item.title}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  {item.detail}
-                </p>
-              </div>
-
-              <span className="text-xs text-slate-500">
-                {item.time}
-              </span>
-            </div>
-          ))}
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/[.02] p-5 text-sm text-slate-500">
+          Real sessions will appear here after the stream-session API is connected.
         </div>
       </div>
     </PageIntro>
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* CREDITS                                                                    */
+/* -------------------------------------------------------------------------- */
+
 export function CreditsPage() {
   const creditRows = [
     [
       "AI looks",
-      "Coming soon",
-      "AI usage billing will connect here.",
+      "Pending",
+      "AI usage billing will use the real creator credit balance.",
     ],
     [
       "Natural camera",
@@ -1754,7 +1699,7 @@ export function CreditsPage() {
     <PageIntro
       eyebrow="Resource center"
       title="Credits, clearly."
-      description="Credit purchases and AI usage billing will appear here once the credit system is connected."
+      description="Your real KelvinLive credit balance will appear here once credit accounting is connected."
     >
       <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
         <div className="panel hero-radial rounded-2xl p-7">
@@ -1763,11 +1708,11 @@ export function CreditsPage() {
           </p>
 
           <p className="mt-4 text-3xl font-bold text-cyan-200">
-            Not connected yet
+            Not connected
           </p>
 
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            No fake balance is shown. Your real balance will appear after payments and credit accounting are connected.
+            The interface will use the real creator profile credit balance instead of showing a fake number.
           </p>
 
           <button
@@ -1822,12 +1767,16 @@ export function CreditsPage() {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* TRANSACTIONS                                                               */
+/* -------------------------------------------------------------------------- */
+
 export function TransactionsPage() {
   return (
     <PageIntro
       eyebrow="Account history"
       title="Every credit accounted for."
-      description="Real transactions will appear here after the payment and credit systems are connected."
+      description="Real transactions will appear here after payment and credit accounting are connected."
       action={
         <button
           type="button"
@@ -1842,16 +1791,20 @@ export function TransactionsPage() {
     >
       <div className="panel rounded-2xl p-8 text-center">
         <p className="text-sm font-semibold text-slate-300">
-          No real transactions yet.
+          Transactions are not connected yet.
         </p>
 
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          This page will populate automatically when purchases and credit usage are connected.
+          Real purchases and credit usage will populate this page.
         </p>
       </div>
     </PageIntro>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* TUTORIAL                                                                   */
+/* -------------------------------------------------------------------------- */
 
 export function TutorialPage() {
   const lessons = [
@@ -1869,7 +1822,7 @@ export function TutorialPage() {
     ],
     [
       "03",
-      "Bring LumaLive into OBS",
+      "Bring KelvinLive into OBS",
       "Add your private Browser Source in three steps.",
       "5 min",
     ],
@@ -1924,6 +1877,10 @@ export function TutorialPage() {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* SETTINGS                                                                   */
+/* -------------------------------------------------------------------------- */
+
 export function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
@@ -1944,17 +1901,17 @@ export function SettingsPage() {
       <div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]">
         <div className="panel rounded-2xl p-6">
           <div className="flex items-center gap-4">
-            <div className="grid size-14 place-items-center rounded-full bg-gradient-to-br from-violet-400 to-cyan-300 text-lg font-extrabold text-slate-950">
-              AM
+            <div className="grid size-14 place-items-center rounded-full border border-white/10 bg-white/[.05] text-cyan-200">
+              <User size={22} />
             </div>
 
             <div>
               <p className="font-bold">
-                Ari Mendez
+                Your account
               </p>
 
               <p className="text-sm text-slate-500">
-                ari@lumalive.example
+                Your authenticated KelvinLive account
               </p>
             </div>
           </div>
@@ -1972,11 +1929,11 @@ export function SettingsPage() {
 
             <div className="flex items-center justify-between rounded-xl bg-white/[.03] p-3">
               <span className="text-slate-400">
-                Member since
+                Account
               </span>
 
-              <span>
-                September 2026
+              <span className="text-slate-300">
+                Active
               </span>
             </div>
           </div>
@@ -2048,15 +2005,17 @@ export function SettingsPage() {
             data-testid="button-save-settings"
           >
             <Save size={16} />
-            {saved
-              ? "Saved"
-              : "Save changes"}
+            {saved ? "Saved" : "Save changes"}
           </button>
         </div>
       </div>
     </PageIntro>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* SHARED COMPONENTS                                                          */
+/* -------------------------------------------------------------------------- */
 
 interface PageIntroProps {
   eyebrow: string;
