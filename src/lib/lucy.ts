@@ -5,9 +5,21 @@ import {
 
 const LUCY_MODEL = "lucy-latest";
 
+type DecartClient =
+  ReturnType<typeof createDecartClient>;
+
+type DecartRealtimeClient =
+  Awaited<
+    ReturnType<
+      DecartClient["realtime"]["connect"]
+    >
+  >;
+
 export type LucyConnection = {
-  client: ReturnType<typeof createDecartClient>;
-  realtimeClient: any | null;
+  client: DecartClient | null;
+  realtimeClient:
+    | DecartRealtimeClient
+    | null;
   onResult: (result: unknown) => void;
   onError: (error: unknown) => void;
 };
@@ -72,13 +84,21 @@ async function getDecartClientToken(): Promise<string> {
   return data.apiKey;
 }
 
-async function dataUrlToBlob(
+async function dataUrlToBase64(
   dataUrl: string,
-): Promise<Blob> {
-  const response =
-    await fetch(dataUrl);
+): Promise<string> {
+  const commaIndex =
+    dataUrl.indexOf(",");
 
-  return response.blob();
+  if (commaIndex === -1) {
+    throw new Error(
+      "Invalid reference image data URL.",
+    );
+  }
+
+  return dataUrl.slice(
+    commaIndex + 1,
+  );
 }
 
 export function createLucyConnection(
@@ -86,19 +106,14 @@ export function createLucyConnection(
   onError: (error: unknown) => void,
 ): LucyConnection {
   /*
-   * The permanent DECART_API_KEY stays on
-   * the Render server.
+   * Do NOT create the Decart client here.
    *
-   * The browser receives only a short-lived
-   * Decart client token.
+   * The client requires the short-lived token,
+   * which is fetched asynchronously when the
+   * media session starts.
    */
-  const client =
-    createDecartClient({
-      apiKey: "",
-    });
-
   return {
-    client,
+    client: null,
     realtimeClient: null,
     onResult,
     onError,
@@ -115,7 +130,7 @@ export function createLucyMediaSession(
   let closed = false;
 
   let realtimeClient:
-    | any
+    | DecartRealtimeClient
     | null = null;
 
   let pendingPrompt:
@@ -131,6 +146,85 @@ export function createLucyMediaSession(
         prompt?: string;
       }
     | null = null;
+
+  async function applyReferenceImage(
+    referenceImageUrl: string,
+    prompt?: string,
+  ): Promise<void> {
+    if (
+      closed ||
+      !realtimeClient
+    ) {
+      return;
+    }
+
+    const cleanImage =
+      referenceImageUrl.trim();
+
+    if (!cleanImage) {
+      return;
+    }
+
+    console.log(
+      "Sending reference image to Decart...",
+    );
+
+    let imageBase64: string;
+
+    if (
+      cleanImage.startsWith(
+        "data:",
+      )
+    ) {
+      imageBase64 =
+        await dataUrlToBase64(
+          cleanImage,
+        );
+    } else {
+      const response =
+        await fetch(cleanImage);
+
+      if (!response.ok) {
+        throw new Error(
+          "Unable to load the Decart reference image.",
+        );
+      }
+
+      const blob =
+        await response.blob();
+
+      const buffer =
+        await blob.arrayBuffer();
+
+      const bytes =
+        new Uint8Array(buffer);
+
+      let binary = "";
+
+      for (
+        let i = 0;
+        i < bytes.length;
+        i += 1
+      ) {
+        binary += String.fromCharCode(
+          bytes[i],
+        );
+      }
+
+      imageBase64 =
+        btoa(binary);
+    }
+
+    await realtimeClient.setImage(
+      imageBase64,
+      prompt?.trim() || undefined,
+      true,
+    );
+
+    console.log(
+      "DECART REFERENCE IMAGE APPLIED",
+    );
+  }
 
   async function connect(): Promise<void> {
     try {
@@ -158,6 +252,9 @@ export function createLucyMediaSession(
           apiKey: clientToken,
         });
 
+      connection.client =
+        client;
+
       const model =
         models.realtime(
           LUCY_MODEL,
@@ -169,231 +266,172 @@ export function createLucyMediaSession(
       );
 
       console.log(
-        "Decart model resolution:",
+        "Decart model:",
         model.width,
         "x",
         model.height,
+        "@",
+        model.fps,
+        "FPS",
       );
 
-      console.log(
-        "Decart model FPS:",
-        model.fps,
-      );
+      /*
+       * Connect directly through the official
+       * Decart realtime SDK.
+       *
+       * The SDK handles the LiveKit/WebRTC
+       * transport internally.
+       */
+      const options: Parameters<
+        DecartClient["realtime"]["connect"]
+      >[1] = {
+        model,
+
+        mirror: "auto",
+
+        onRemoteStream:
+          (
+            transformedStream,
+          ) => {
+            if (closed) {
+              return;
+            }
+
+            console.log(
+              "=================================",
+            );
+
+            console.log(
+              "DECART TRANSFORMED STREAM RECEIVED",
+            );
+
+            console.log(
+              "=================================",
+            );
+
+            outputVideo.srcObject =
+              transformedStream;
+
+            outputVideo.autoplay =
+              true;
+
+            outputVideo.muted =
+              true;
+
+            outputVideo.playsInline =
+              true;
+
+            void outputVideo
+              .play()
+              .then(() => {
+                if (!closed) {
+                  console.log(
+                    "DECART TRANSFORMATION IS LIVE",
+                  );
+
+                  onConnected();
+                }
+              })
+              .catch(
+                (error) => {
+                  console.error(
+                    "Decart output video play failed:",
+                    error,
+                  );
+
+                  /*
+                   * The transformed stream has
+                   * already arrived. Autoplay
+                   * failure should not be treated
+                   * as a failed AI connection.
+                   */
+                  if (!closed) {
+                    onConnected();
+                  }
+                },
+              );
+          },
+
+        onError: (
+          error,
+        ) => {
+          console.error(
+            "DECART REALTIME ERROR:",
+            error,
+          );
+
+          onError(error);
+        },
+      };
+
+      if (pendingPrompt) {
+        options.initialState = {
+          prompt: {
+            text:
+              pendingPrompt.text,
+            enhance:
+              pendingPrompt.enhance,
+          },
+        };
+      }
 
       realtimeClient =
         await client.realtime.connect(
           inputStream,
-          {
-            model,
-
-            mirror: "auto",
-
-            onRemoteStream:
-              (
-                transformedStream,
-              ) => {
-                if (closed) {
-                  return;
-                }
-
-                console.log(
-                  "=================================",
-                );
-
-                console.log(
-                  "DECART TRANSFORMED STREAM RECEIVED",
-                );
-
-                console.log(
-                  "=================================",
-                );
-
-                outputVideo.srcObject =
-                  transformedStream;
-
-                outputVideo.autoplay =
-                  true;
-
-                outputVideo.muted =
-                  true;
-
-                outputVideo.playsInline =
-                  true;
-
-                void outputVideo
-                  .play()
-                  .then(() => {
-                    if (!closed) {
-                      console.log(
-                        "DECART TRANSFORMATION IS LIVE",
-                      );
-
-                      onConnected();
-                    }
-                  })
-                  .catch(
-                    (error) => {
-                      console.error(
-                        "Decart output video play failed:",
-                        error,
-                      );
-
-                      if (!closed) {
-                        onConnected();
-                      }
-                    },
-                  );
-              },
-
-            onError: (
-              error,
-            ) => {
-              console.error(
-                "Decart realtime error:",
-                error,
-              );
-
-              onError(error);
-            },
-
-            initialState:
-              pendingReference
-                ? undefined
-                : pendingPrompt
-                  ? {
-                      prompt: {
-                        text:
-                          pendingPrompt
-                            .text,
-                        enhance:
-                          pendingPrompt
-                            .enhance,
-                      },
-                    }
-                  : undefined,
-          },
+          options,
         );
+
+      if (closed) {
+        realtimeClient.disconnect();
+        realtimeClient = null;
+        return;
+      }
 
       connection.realtimeClient =
         realtimeClient;
 
       console.log(
+        "=================================",
+      );
+
+      console.log(
         "DECART REALTIME CONNECTED",
       );
 
-      /*
-       * Apply a prompt that was requested
-       * before the connection finished.
-       */
-      if (
-        pendingPrompt &&
-        !pendingReference
-      ) {
-        try {
-          realtimeClient.setPrompt(
-            pendingPrompt.text,
-          );
-        } catch (error) {
-          console.error(
-            "Decart pending prompt failed:",
-            error,
-          );
-
-          onError(error);
-        }
-      }
+      console.log(
+        "=================================",
+      );
 
       /*
-       * Apply a reference image that was
-       * requested before connection finished.
+       * A reference image must be applied
+       * after the realtime connection exists.
        */
       if (pendingReference) {
-        try {
-          await applyReference(
-            pendingReference.image,
-            pendingReference.prompt,
-          );
-        } catch (error) {
-          console.error(
-            "Decart pending reference failed:",
-            error,
-          );
+        const reference =
+          pendingReference;
 
-          onError(error);
-        }
+        await applyReferenceImage(
+          reference.image,
+          reference.prompt,
+        );
       }
     } catch (error) {
+      console.error(
+        "=================================",
+      );
+
       console.error(
         "DECART REALTIME CONNECTION FAILED:",
         error,
       );
 
+      console.error(
+        "=================================",
+      );
+
       onError(error);
     }
   }
-
-  async function applyReference(
-    referenceImageUrl: string,
-    prompt?: string,
-  ): Promise<void> {
-    if (
-      !realtimeClient ||
-      closed
-    ) {
-      return;
-    }
-
-    const cleanImage =
-      referenceImageUrl.trim();
-
-    if (!cleanImage) {
-      return;
-    }
-
-    console.log(
-      "Sending reference image to Decart...",
-    );
-
-    /*
-     * Studio currently gives us a data URL.
-     * Convert it to a Blob so the Decart SDK
-     * can send it as image input.
-     */
-    let image:
-      | string
-      | Blob =
-      cleanImage;
-
-    if (
-      cleanImage.startsWith(
-        "data:",
-      )
-    ) {
-      image =
-        await dataUrlToBlob(
-          cleanImage,
-        );
-    }
-
-    await realtimeClient.set({
-      image,
-
-      ...(prompt?.trim()
-        ? {
-            prompt:
-              prompt.trim(),
-          }
-        : {}),
-
-      enhance: true,
-    });
-
-    console.log(
-      "DECART REFERENCE IMAGE APPLIED",
-    );
-  }
-
-  void connect();
 
   function setPrompt(
     prompt: string,
@@ -419,29 +457,25 @@ export function createLucyMediaSession(
 
     if (!realtimeClient) {
       console.log(
-        "Decart is still connecting; prompt queued.",
+        "Decart is connecting; prompt queued.",
       );
 
       return;
     }
 
-    try {
-      realtimeClient.setPrompt(
+    void realtimeClient
+      .setPrompt(
         cleanPrompt,
-      );
+        enhancePrompt,
+      )
+      .catch((error) => {
+        console.error(
+          "Decart prompt failed:",
+          error,
+        );
 
-      console.log(
-        "Decart prompt sent:",
-        cleanPrompt,
-      );
-    } catch (error) {
-      console.error(
-        "Decart prompt failed:",
-        error,
-      );
-
-      onError(error);
-    }
+        onError(error);
+      });
   }
 
   function setReferenceImage(
@@ -468,13 +502,13 @@ export function createLucyMediaSession(
 
     if (!realtimeClient) {
       console.log(
-        "Decart is still connecting; reference image queued.",
+        "Decart is connecting; reference image queued.",
       );
 
       return;
     }
 
-    void applyReference(
+    void applyReferenceImage(
       cleanImage,
       prompt,
     ).catch((error) => {
@@ -486,6 +520,8 @@ export function createLucyMediaSession(
       onError(error);
     });
   }
+
+  void connect();
 
   return {
     close: () => {
@@ -514,6 +550,9 @@ export function createLucyMediaSession(
       connection.realtimeClient =
         null;
 
+      connection.client =
+        null;
+
       if (
         outputVideo.srcObject
       ) {
@@ -537,18 +576,15 @@ export async function handleLucyResult(
   result: unknown,
 ): Promise<void> {
   /*
-   * Kept because Studio.tsx already imports
-   * this function.
+   * Kept for compatibility with Studio.tsx.
    *
-   * Decart's current SDK handles realtime
-   * WebRTC signaling internally, so Studio
-   * does not need to manually process ICE/SDP
-   * messages anymore.
+   * Decart's SDK now handles realtime
+   * signaling internally.
    */
   console.log(
     "Decart realtime result:",
     result,
   );
 
-  void connection;
+  connection.onResult(result);
 }
