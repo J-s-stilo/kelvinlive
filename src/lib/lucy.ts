@@ -967,16 +967,3 @@ export async function handleLucyResult(
   }
 }
 
-This is the one to use.
-
-The key fix is that "createLucyConnection()" now directly forwards every fal "onResult" message into the active media session. Your previous code only stored "__lucySignalHandler"; it did not actually dispatch incoming fal messages to it.
-
-Also, the official Lucy 2.5 docs confirm that "fal.realtime.connect()" is the intended production path and that the browser should receive the short-lived token from your backend rather than exposing "FAL_KEY".
-
-After you replace it
-
-Don't change anything else yet.
-
-Commit it → deploy → then tell me "Done".
-
-Then we'll check the Render logs. If fal rejects the token, account, prompt, or WebRTC session, the new logging will show us exactly where it fails.
