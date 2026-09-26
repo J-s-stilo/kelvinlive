@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import {
+  createLucyConnection,
+  createLucyMediaSession,
+  handleLucyResult,
+  type LucyConnection,
+  type LucyMediaSession,
+} from "../lib/lucy";
 
 interface CameraDevice {
   deviceId: string;
@@ -30,12 +37,18 @@ const DEFAULT_LOOK_IMAGE =
 
 export default function Studio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const transformedVideoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const lucyConnectionRef = useRef<LucyConnection | null>(null);
+  const lucySessionRef = useRef<LucyMediaSession | null>(null);
 
   const [cameraOn, setCameraOn] = useState(false);
   const [micOn, setMicOn] = useState(true);
 
   const [aiLook, setAiLook] = useState(false);
+  const [aiTransforming, setAiTransforming] = useState(false);
+  const [aiError, setAiError] = useState("");
   const [showLookPicker, setShowLookPicker] = useState(false);
 
   const [selectedReference, setSelectedReference] =
@@ -90,9 +103,136 @@ export default function Studio() {
     }
   }
 
+  function stopLucy(): void {
+    lucySessionRef.current?.close();
+    lucySessionRef.current = null;
+
+    lucyConnectionRef.current?.close();
+    lucyConnectionRef.current = null;
+
+    if (transformedVideoRef.current) {
+      transformedVideoRef.current.srcObject = null;
+    }
+
+    setAiTransforming(false);
+  }
+
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error("Unable to read the reference file."));
+          return;
+        }
+
+        resolve(reader.result);
+      };
+
+      reader.onerror = () => {
+        reject(new Error("Unable to read the reference file."));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function startLucy(
+    inputStream: MediaStream,
+    referenceFile?: File | null,
+  ): Promise<void> {
+    if (!inputStream) {
+      return;
+    }
+
+    stopLucy();
+    setAiError("");
+    setAiTransforming(true);
+
+    let connection: LucyConnection | null = null;
+    let session: LucyMediaSession | null = null;
+
+    try {
+      connection = createLucyConnection(
+        (result) => {
+          if (connection) {
+            void handleLucyResult(connection, result);
+          }
+        },
+        (error) => {
+          console.error("Lucy error:", error);
+          setAiTransforming(false);
+          setAiError(
+            error instanceof Error
+              ? error.message
+              : "The AI transformation could not start.",
+          );
+        },
+      );
+
+      lucyConnectionRef.current = connection;
+
+      session = createLucyMediaSession(
+        connection,
+        inputStream,
+        transformedVideoRef.current!,
+        () => {
+          setAiTransforming(false);
+          setAiError("");
+        },
+        (error) => {
+          console.error("Lucy media error:", error);
+          setAiTransforming(false);
+          setAiError(
+            error instanceof Error
+              ? error.message
+              : "The AI transformation connection failed.",
+          );
+        },
+      );
+
+      lucySessionRef.current = session;
+
+      const prompt = referenceFile
+        ? "Transform the person in the live camera into the person or character shown in the reference image. Preserve the person's full-body movement, pose, facial motion, camera motion, lighting, and natural live-video movement."
+        : "Transform the person in the live camera into a cinematic futuristic AI character while preserving the person's full-body movement, pose, facial motion, camera motion, and natural live-video movement.";
+
+      if (referenceFile) {
+        const referenceUrl = await fileToDataUrl(referenceFile);
+
+        connection.send({
+          prompt,
+          reference_image_url: referenceUrl,
+          enable_prompt_expansion: true,
+        });
+      } else {
+        connection.send({
+          prompt,
+          enable_prompt_expansion: true,
+        });
+      }
+
+      console.log("Lucy transformation request sent.");
+    } catch (error) {
+      console.error("Unable to start Lucy:", error);
+      setAiTransforming(false);
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start the AI transformation.",
+      );
+      session?.close();
+      connection?.close();
+      lucySessionRef.current = null;
+      lucyConnectionRef.current = null;
+    }
+  }
+
   async function startCamera(
     deviceId?: string,
   ): Promise<void> {
+    stopLucy();
     setCameraPermission("requesting");
     setCameraError("");
 
@@ -159,6 +299,10 @@ export default function Studio() {
       setCameraPermission("granted");
 
       await loadCameras();
+
+      if (aiLook) {
+        await startLucy(stream, selectedReference);
+      }
     } catch (error) {
       console.error(error);
 
@@ -172,6 +316,8 @@ export default function Studio() {
   }
 
   function stopCamera(): void {
+    stopLucy();
+
     if (streamRef.current) {
       streamRef.current
         .getTracks()
@@ -303,22 +449,36 @@ export default function Studio() {
   /*
    * APPLY AI LOOK
    */
-  function applyAiLook(): void {
+  async function applyAiLook(): Promise<void> {
+    if (!cameraOn || !streamRef.current) {
+      setCameraError("Turn on your camera before starting the AI transformation.");
+      return;
+    }
+
     setAiLook(true);
     setShowLookPicker(false);
+
+    await startLucy(
+      streamRef.current,
+      selectedReference,
+    );
   }
 
   /*
    * TURN OFF AI LOOK
    */
   function disableAiLook(): void {
+    stopLucy();
     setAiLook(false);
+    setAiError("");
   }
 
   useEffect(() => {
     void startCamera();
 
     return () => {
+      stopLucy();
+
       if (streamRef.current) {
         streamRef.current
           .getTracks()
@@ -432,14 +592,54 @@ export default function Studio() {
               data-testid="display-camera-preview"
             >
               {cameraOn ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="absolute inset-0 h-full w-full object-cover"
-                  data-testid="video-camera-preview"
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={`absolute inset-0 h-full w-full object-cover ${
+                      aiLook ? "opacity-0" : "opacity-100"
+                    }`}
+                    data-testid="video-camera-preview"
+                  />
+
+                  <video
+                    ref={transformedVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={`absolute inset-0 h-full w-full object-cover ${
+                      aiLook ? "opacity-100" : "pointer-events-none opacity-0"
+                    }`}
+                    data-testid="video-ai-transformed-preview"
+                  />
+
+                  {aiLook && aiTransforming && (
+                    <div className="absolute inset-0 grid place-items-center bg-black/35 backdrop-blur-[2px]">
+                      <div className="rounded-2xl border border-violet-300/20 bg-black/65 px-5 py-4 text-center shadow-2xl">
+                        <WandSparkles className="mx-auto animate-pulse text-violet-300" size={28} />
+                        <p className="mt-3 text-sm font-bold text-white">
+                          Starting AI transformation…
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Connecting your live camera to Lucy 2.5
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {aiLook && aiError && (
+                    <div className="absolute inset-x-4 bottom-20 rounded-2xl border border-rose-300/20 bg-black/75 p-4 backdrop-blur">
+                      <p className="text-sm font-semibold text-rose-200">
+                        AI transformation error
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">
+                        {aiError}
+                      </p>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="absolute inset-0 grid place-items-center bg-[#080b11]">
                   <div className="px-6 text-center">
@@ -527,9 +727,11 @@ export default function Studio() {
                 <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-violet-300/30 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 backdrop-blur">
                   <WandSparkles size={13} />
 
-                  {selectedReference
-                    ? "AI reference active"
-                    : "Aurora look"}
+                  {aiTransforming
+                    ? "Connecting AI…"
+                    : selectedReference
+                      ? "AI reference active"
+                      : "AI look active"}
                 </div>
               )}
             </div>
@@ -1008,7 +1210,7 @@ export default function Studio() {
 
                 <button
                   type="button"
-                  onClick={applyAiLook}
+                  onClick={() => void applyAiLook()}
                   className="rounded-xl bg-violet-300 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-violet-200"
                   data-testid="button-apply-ai-look"
                 >
