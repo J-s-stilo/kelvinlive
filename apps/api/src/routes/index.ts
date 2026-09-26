@@ -2,12 +2,12 @@ import { Router, type IRouter } from "express";
 
 import aiRouter from "./ai";
 import creatorRouter from "./creator";
-import lucyRouter from "./lucy";
+import falRouter from "./fal";
 
 const router: IRouter = Router();
 
 router.use("/creator", creatorRouter);
 router.use("/ai", aiRouter);
-router.use("/fal", lucyRouter);
+router.use("/fal", falRouter);
 
 export default router;
