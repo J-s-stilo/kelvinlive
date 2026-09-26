@@ -3,11 +3,11 @@ import { createDecartClient } from "@decartai/sdk";
 
 const router: IRouter = Router();
 
-router.post(
-  "/realtime-token",
+router.get(
+  "/status",
   async (_req, res): Promise<void> => {
     console.log("=================================");
-    console.log("DECART REALTIME REQUEST RECEIVED");
+    console.log("DECART STATUS REQUEST RECEIVED");
     console.log("=================================");
 
     const decartKey = process.env.DECART_API_KEY;
@@ -18,42 +18,39 @@ router.post(
     );
 
     if (!decartKey) {
-      console.error(
-        "DECART_API_KEY is missing from Render environment.",
-      );
-
       res.status(500).json({
-        error:
-          "DECART_API_KEY is not configured on the server.",
+        ok: false,
+        provider: "decart",
+        error: "DECART_API_KEY is not configured.",
       });
 
       return;
     }
 
     try {
-      const client = createDecartClient({
+      createDecartClient({
         apiKey: decartKey,
       });
 
       console.log(
-        "DECART CLIENT CREATED SUCCESSFULLY",
+        "DECART CLIENT INITIALIZED SUCCESSFULLY",
       );
 
       res.status(200).json({
         ok: true,
-        message: "Decart realtime client is configured.",
+        provider: "decart",
+        realtime: true,
       });
-
-      void client;
     } catch (error) {
       console.error(
-        "DECART CLIENT ERROR:",
+        "DECART CLIENT INITIALIZATION ERROR:",
         error,
       );
 
       res.status(500).json({
-        error:
-          "Failed to initialize the Decart realtime client.",
+        ok: false,
+        provider: "decart",
+        error: "Failed to initialize Decart.",
       });
     }
   },
