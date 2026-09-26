@@ -1,10 +1,16 @@
-import { fal } from "@fal-ai/client";
+import {
+  createDecartClient,
+  models,
+} from "@decartai/sdk";
 
-const LUCY_MODEL = "decart/lucy-2-5/realtime";
+const LUCY_MODEL = "lucy-latest";
 
-export type LucyConnection = ReturnType<
-  typeof fal.realtime.connect
->;
+export type LucyConnection = {
+  client: ReturnType<typeof createDecartClient>;
+  realtimeClient: any | null;
+  onResult: (result: unknown) => void;
+  onError: (error: unknown) => void;
+};
 
 export type LucyMediaSession = {
   close: () => void;
@@ -18,188 +24,85 @@ export type LucyMediaSession = {
   ) => void;
 };
 
-type LucyResult = {
-  type?: string;
+async function getDecartClientToken(): Promise<string> {
+  console.log(
+    "Requesting Decart client token...",
+  );
 
-  iceServers?: RTCIceServer[];
-  iceservers?: RTCIceServer[];
-  ice_servers?: RTCIceServer[];
+  const response = await fetch(
+    "/api/decart/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+    },
+  );
 
-  candidate?: RTCIceCandidateInit | null;
+  const data =
+    await response.json().catch(
+      () => null,
+    );
 
-  sdp?: string;
+  if (!response.ok) {
+    const message =
+      data &&
+      typeof data.error === "string"
+        ? data.error
+        : "Unable to create Decart client token.";
 
-  error?: unknown;
+    throw new Error(message);
+  }
 
-  success?: boolean;
+  if (
+    !data ||
+    typeof data.apiKey !== "string" ||
+    !data.apiKey.trim()
+  ) {
+    throw new Error(
+      "Decart returned an invalid client token.",
+    );
+  }
 
-  turn_config?: {
-    server_url?: string;
-    username?: string;
-    credential?: string;
-  };
-};
+  console.log(
+    "Decart client token received.",
+  );
 
-type SignalHandler = (
-  result: unknown,
-) => Promise<void>;
+  return data.apiKey;
+}
+
+async function dataUrlToBlob(
+  dataUrl: string,
+): Promise<Blob> {
+  const response =
+    await fetch(dataUrl);
+
+  return response.blob();
+}
 
 export function createLucyConnection(
   onResult: (result: unknown) => void,
   onError: (error: unknown) => void,
 ): LucyConnection {
-  let signalHandler:
-    | SignalHandler
-    | null = null;
-
-  const connection = fal.realtime.connect(
-    LUCY_MODEL,
-    {
-      connectionKey:
-        `kelvinlive-${Date.now()}`,
-
-      throttleInterval: 0,
-
-      onResult: async (result) => {
-        console.log(
-          "Lucy realtime result:",
-          result,
-        );
-
-        /*
-         * Give the Studio the raw Lucy message.
-         */
-        try {
-          onResult(result);
-        } catch (error) {
-          console.error(
-            "Lucy Studio result handler failed:",
-            error,
-          );
-        }
-
-        /*
-         * Route the same message into the
-         * active WebRTC session.
-         */
-        if (signalHandler) {
-          try {
-            await signalHandler(result);
-          } catch (error) {
-            console.error(
-              "Lucy signaling handler failed:",
-              error,
-            );
-
-            onError(error);
-          }
-        }
-      },
-
-      onError: (error) => {
-        console.error(
-          "Lucy realtime connection error:",
-          error,
-        );
-
-        onError(error);
-      },
-
-      /*
-       * FAL_KEY NEVER goes into the browser.
-       *
-       * The browser receives only the short-lived
-       * realtime token from our backend.
-       */
-      tokenProvider: async (app) => {
-        console.log(
-          "Requesting Lucy realtime token...",
-          app,
-        );
-
-        const response = await fetch(
-          "/api/fal/realtime-token",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              app,
-            }),
-          },
-        );
-
-        const token =
-          await response.text();
-
-        if (!response.ok) {
-          console.error(
-            "Lucy token request failed:",
-            token,
-          );
-
-          throw new Error(
-            token ||
-              "Unable to create the Lucy realtime token.",
-          );
-        }
-
-        if (!token.trim()) {
-          throw new Error(
-            "FAL returned an empty realtime token.",
-          );
-        }
-
-        console.log(
-          "Lucy realtime token received.",
-        );
-
-        return token;
-      },
-
-      tokenExpirationSeconds: 10,
-    },
-  );
-
   /*
-   * Start the realtime signaling session.
+   * The permanent DECART_API_KEY stays on
+   * the Render server.
    *
-   * This is required by the official realtime
-   * connection flow.
+   * The browser receives only a short-lived
+   * Decart client token.
    */
-  try {
-    connection.send({});
-    console.log(
-      "Lucy realtime session initialized.",
-    );
-  } catch (error) {
-    console.error(
-      "Lucy realtime initialization failed:",
-      error,
-    );
+  const client =
+    createDecartClient({
+      apiKey: "",
+    });
 
-    onError(error);
-  }
-
-  /*
-   * Attach the handler privately so the media
-   * session can receive every signaling message.
-   */
-  const internalConnection =
-    connection as LucyConnection & {
-      __setLucySignalHandler?: (
-        handler: SignalHandler | null,
-      ) => void;
-    };
-
-  internalConnection.__setLucySignalHandler =
-    (handler) => {
-      signalHandler = handler;
-    };
-
-  return connection;
+  return {
+    client,
+    realtimeClient: null,
+    onResult,
+    onError,
+  };
 }
 
 export function createLucyMediaSession(
@@ -209,19 +112,288 @@ export function createLucyMediaSession(
   onConnected: () => void,
   onError: (error: unknown) => void,
 ): LucyMediaSession {
-  let peerConnection:
-    | RTCPeerConnection
+  let closed = false;
+
+  let realtimeClient:
+    | any
     | null = null;
 
-  let closed = false;
-  let connected = false;
+  let pendingPrompt:
+    | {
+        text: string;
+        enhance: boolean;
+      }
+    | null = null;
 
-  const internalConnection =
-    connection as LucyConnection & {
-      __setLucySignalHandler?: (
-        handler: SignalHandler | null,
-      ) => void;
-    };
+  let pendingReference:
+    | {
+        image: string;
+        prompt?: string;
+      }
+    | null = null;
+
+  async function connect(): Promise<void> {
+    try {
+      console.log(
+        "=================================",
+      );
+
+      console.log(
+        "CONNECTING TO DECART REALTIME",
+      );
+
+      console.log(
+        "=================================",
+      );
+
+      const clientToken =
+        await getDecartClientToken();
+
+      if (closed) {
+        return;
+      }
+
+      const client =
+        createDecartClient({
+          apiKey: clientToken,
+        });
+
+      const model =
+        models.realtime(
+          LUCY_MODEL,
+        );
+
+      console.log(
+        "Decart model:",
+        LUCY_MODEL,
+      );
+
+      console.log(
+        "Decart model resolution:",
+        model.width,
+        "x",
+        model.height,
+      );
+
+      console.log(
+        "Decart model FPS:",
+        model.fps,
+      );
+
+      realtimeClient =
+        await client.realtime.connect(
+          inputStream,
+          {
+            model,
+
+            mirror: "auto",
+
+            onRemoteStream:
+              (
+                transformedStream,
+              ) => {
+                if (closed) {
+                  return;
+                }
+
+                console.log(
+                  "=================================",
+                );
+
+                console.log(
+                  "DECART TRANSFORMED STREAM RECEIVED",
+                );
+
+                console.log(
+                  "=================================",
+                );
+
+                outputVideo.srcObject =
+                  transformedStream;
+
+                outputVideo.autoplay =
+                  true;
+
+                outputVideo.muted =
+                  true;
+
+                outputVideo.playsInline =
+                  true;
+
+                void outputVideo
+                  .play()
+                  .then(() => {
+                    if (!closed) {
+                      console.log(
+                        "DECART TRANSFORMATION IS LIVE",
+                      );
+
+                      onConnected();
+                    }
+                  })
+                  .catch(
+                    (error) => {
+                      console.error(
+                        "Decart output video play failed:",
+                        error,
+                      );
+
+                      if (!closed) {
+                        onConnected();
+                      }
+                    },
+                  );
+              },
+
+            onError: (
+              error,
+            ) => {
+              console.error(
+                "Decart realtime error:",
+                error,
+              );
+
+              onError(error);
+            },
+
+            initialState:
+              pendingReference
+                ? undefined
+                : pendingPrompt
+                  ? {
+                      prompt: {
+                        text:
+                          pendingPrompt
+                            .text,
+                        enhance:
+                          pendingPrompt
+                            .enhance,
+                      },
+                    }
+                  : undefined,
+          },
+        );
+
+      connection.realtimeClient =
+        realtimeClient;
+
+      console.log(
+        "DECART REALTIME CONNECTED",
+      );
+
+      /*
+       * Apply a prompt that was requested
+       * before the connection finished.
+       */
+      if (
+        pendingPrompt &&
+        !pendingReference
+      ) {
+        try {
+          realtimeClient.setPrompt(
+            pendingPrompt.text,
+          );
+        } catch (error) {
+          console.error(
+            "Decart pending prompt failed:",
+            error,
+          );
+
+          onError(error);
+        }
+      }
+
+      /*
+       * Apply a reference image that was
+       * requested before connection finished.
+       */
+      if (pendingReference) {
+        try {
+          await applyReference(
+            pendingReference.image,
+            pendingReference.prompt,
+          );
+        } catch (error) {
+          console.error(
+            "Decart pending reference failed:",
+            error,
+          );
+
+          onError(error);
+        }
+      }
+    } catch (error) {
+      console.error(
+        "DECART REALTIME CONNECTION FAILED:",
+        error,
+      );
+
+      onError(error);
+    }
+  }
+
+  async function applyReference(
+    referenceImageUrl: string,
+    prompt?: string,
+  ): Promise<void> {
+    if (
+      !realtimeClient ||
+      closed
+    ) {
+      return;
+    }
+
+    const cleanImage =
+      referenceImageUrl.trim();
+
+    if (!cleanImage) {
+      return;
+    }
+
+    console.log(
+      "Sending reference image to Decart...",
+    );
+
+    /*
+     * Studio currently gives us a data URL.
+     * Convert it to a Blob so the Decart SDK
+     * can send it as image input.
+     */
+    let image:
+      | string
+      | Blob =
+      cleanImage;
+
+    if (
+      cleanImage.startsWith(
+        "data:",
+      )
+    ) {
+      image =
+        await dataUrlToBlob(
+          cleanImage,
+        );
+    }
+
+    await realtimeClient.set({
+      image,
+
+      ...(prompt?.trim()
+        ? {
+            prompt:
+              prompt.trim(),
+          }
+        : {}),
+
+      enhance: true,
+    });
+
+    console.log(
+      "DECART REFERENCE IMAGE APPLIED",
+    );
+  }
+
+  void connect();
 
   function setPrompt(
     prompt: string,
@@ -235,27 +407,36 @@ export function createLucyMediaSession(
       prompt.trim();
 
     if (!cleanPrompt) {
-      console.warn(
-        "Lucy prompt is empty.",
+      return;
+    }
+
+    pendingPrompt = {
+      text: cleanPrompt,
+      enhance: enhancePrompt,
+    };
+
+    pendingReference = null;
+
+    if (!realtimeClient) {
+      console.log(
+        "Decart is still connecting; prompt queued.",
       );
 
       return;
     }
 
     try {
-      console.log(
-        "Sending Lucy prompt:",
+      realtimeClient.setPrompt(
         cleanPrompt,
       );
 
-      connection.send({
-        prompt: cleanPrompt,
-        enhance_prompt:
-          enhancePrompt,
-      });
+      console.log(
+        "Decart prompt sent:",
+        cleanPrompt,
+      );
     } catch (error) {
       console.error(
-        "Lucy prompt send failed:",
+        "Decart prompt failed:",
         error,
       );
 
@@ -275,663 +456,63 @@ export function createLucyMediaSession(
       referenceImageUrl.trim();
 
     if (!cleanImage) {
-      console.warn(
-        "Lucy reference image is empty.",
+      return;
+    }
+
+    pendingReference = {
+      image: cleanImage,
+      prompt,
+    };
+
+    pendingPrompt = null;
+
+    if (!realtimeClient) {
+      console.log(
+        "Decart is still connecting; reference image queued.",
       );
 
       return;
     }
 
-    try {
-      const message: Record<
-        string,
-        unknown
-      > = {
-        reference_image_url:
-          cleanImage,
-
-        enhance_prompt: true,
-      };
-
-      if (prompt?.trim()) {
-        message.prompt =
-          prompt.trim();
-      }
-
-      console.log(
-        "Sending Lucy reference image:",
-        cleanImage,
-      );
-
-      connection.send(message);
-    } catch (error) {
+    void applyReference(
+      cleanImage,
+      prompt,
+    ).catch((error) => {
       console.error(
-        "Lucy reference image send failed:",
+        "Decart reference image failed:",
         error,
       );
 
       onError(error);
-    }
-  }
-
-  async function createPeerConnection(
-    rawIceServers: RTCIceServer[],
-  ): Promise<void> {
-    if (closed) {
-      return;
-    }
-
-    console.log(
-      "Creating Lucy WebRTC connection...",
-    );
-
-    if (peerConnection) {
-      peerConnection.close();
-      peerConnection = null;
-    }
-
-    peerConnection =
-      new RTCPeerConnection({
-        iceServers:
-          rawIceServers.map(
-            (server) => ({
-              urls: server.urls,
-              username:
-                server.username,
-              credential:
-                server.credential,
-            }),
-          ),
-      });
-
-    /*
-     * Send camera + microphone to Lucy.
-     */
-    for (const track of
-      inputStream.getTracks()) {
-      console.log(
-        "Adding input track:",
-        track.kind,
-        track.readyState,
-      );
-
-      peerConnection.addTrack(
-        track,
-        inputStream,
-      );
-    }
-
-    /*
-     * Receive transformed video.
-     */
-    peerConnection.ontrack =
-      (event) => {
-        if (closed) {
-          return;
-        }
-
-        const remoteStream =
-          event.streams?.[0];
-
-        if (!remoteStream) {
-          console.warn(
-            "Lucy returned a track without a stream.",
-          );
-
-          return;
-        }
-
-        console.log(
-          "================================",
-        );
-
-        console.log(
-          "LUCY TRANSFORMED STREAM RECEIVED",
-        );
-
-        console.log(
-          "================================",
-        );
-
-        outputVideo.srcObject =
-          remoteStream;
-
-        outputVideo.autoplay =
-          true;
-
-        outputVideo.muted =
-          true;
-
-        outputVideo.playsInline =
-          true;
-
-        void outputVideo
-          .play()
-          .then(() => {
-            if (!connected) {
-              connected = true;
-
-              console.log(
-                "LUCY TRANSFORMATION IS LIVE",
-              );
-
-              onConnected();
-            }
-          })
-          .catch((error) => {
-            console.error(
-              "Lucy output video play failed:",
-              error,
-            );
-
-            /*
-             * The remote stream has arrived even
-             * if autoplay itself was blocked.
-             */
-            if (!connected) {
-              connected = true;
-              onConnected();
-            }
-          });
-      };
-
-    /*
-     * Send local ICE candidates to Lucy.
-     */
-    peerConnection.onicecandidate =
-      (event) => {
-        if (
-          closed ||
-          !event.candidate
-        ) {
-          return;
-        }
-
-        try {
-          connection.send({
-            type: "icecandidate",
-
-            candidate: {
-              candidate:
-                event.candidate
-                  .candidate,
-
-              sdpMid:
-                event.candidate
-                  .sdpMid,
-
-              sdpMLineIndex:
-                event.candidate
-                  .sdpMLineIndex,
-            },
-          });
-
-          console.log(
-            "Lucy local ICE candidate sent.",
-          );
-        } catch (error) {
-          console.error(
-            "Lucy ICE candidate send failed:",
-            error,
-          );
-
-          onError(error);
-        }
-      };
-
-    /*
-     * WebRTC connection state.
-     */
-    peerConnection.onconnectionstatechange =
-      () => {
-        if (
-          closed ||
-          !peerConnection
-        ) {
-          return;
-        }
-
-        const state =
-          peerConnection
-            .connectionState;
-
-        console.log(
-          "Lucy WebRTC state:",
-          state,
-        );
-
-        if (
-          state === "connected"
-        ) {
-          if (!connected) {
-            connected = true;
-
-            console.log(
-              "Lucy WebRTC CONNECTED.",
-            );
-
-            onConnected();
-          }
-        }
-
-        if (
-          state === "failed"
-        ) {
-          onError(
-            new Error(
-              "Lucy WebRTC connection failed.",
-            ),
-          );
-        }
-
-        if (
-          state === "disconnected"
-        ) {
-          console.warn(
-            "Lucy WebRTC disconnected.",
-          );
-        }
-      };
-
-    /*
-     * ICE connection state.
-     */
-    peerConnection.oniceconnectionstatechange =
-      () => {
-        if (
-          closed ||
-          !peerConnection
-        ) {
-          return;
-        }
-
-        console.log(
-          "Lucy ICE connection state:",
-          peerConnection
-            .iceConnectionState,
-        );
-      };
-
-    /*
-     * Create browser WebRTC offer.
-     */
-    const offer =
-      await peerConnection.createOffer();
-
-    await peerConnection.setLocalDescription(
-      offer,
-    );
-
-    if (
-      !peerConnection.localDescription
-    ) {
-      throw new Error(
-        "Lucy local WebRTC description was not created.",
-      );
-    }
-
-    console.log(
-      "Sending Lucy WebRTC offer...",
-    );
-
-    connection.send({
-      type: "offer",
-
-      sdp:
-        peerConnection
-          .localDescription
-          .sdp,
     });
   }
 
-  async function handleResult(
-    rawResult: unknown,
-  ): Promise<void> {
-    if (closed) {
-      return;
-    }
-
-    const result =
-      rawResult as LucyResult;
-
-    console.log(
-      "Lucy signaling message:",
-      result,
-    );
-
-    try {
-      /*
-       * Initial ICE server message.
-       */
-      const iceServers =
-        result.iceServers ??
-        result.iceservers ??
-        result.ice_servers;
-
-      if (
-        iceServers &&
-        iceServers.length > 0
-      ) {
-        console.log(
-          "Lucy ICE servers received:",
-          iceServers.length,
-        );
-
-        await createPeerConnection(
-          iceServers,
-        );
-
+  return {
+    close: () => {
+      if (closed) {
         return;
       }
 
-      switch (result.type) {
-        /*
-         * Some Lucy responses identify the
-         * ICE server message by type.
-         */
-        case "iceservers": {
-          const servers =
-            result.iceServers ??
-            result.iceservers ??
-            result.ice_servers;
-
-          if (
-            servers &&
-            servers.length > 0
-          ) {
-            await createPeerConnection(
-              servers,
-            );
-          }
-
-          return;
-        }
-
-        /*
-         * Remote WebRTC answer.
-         */
-        case "answer": {
-          if (
-            !peerConnection ||
-            !result.sdp
-          ) {
-            console.warn(
-              "Lucy answer received without a peer connection or SDP.",
-            );
-
-            return;
-          }
-
-          console.log(
-            "Applying Lucy WebRTC answer...",
-          );
-
-          await peerConnection.setRemoteDescription(
-            {
-              type: "answer",
-              sdp: result.sdp,
-            },
-          );
-
-          console.log(
-            "Lucy remote description applied.",
-          );
-
-          return;
-        }
-
-        /*
-         * Remote ICE candidate.
-         */
-        case "icecandidate": {
-          if (
-            !peerConnection ||
-            !result.candidate
-          ) {
-            return;
-          }
-
-          console.log(
-            "Applying Lucy remote ICE candidate...",
-          );
-
-          await peerConnection.addIceCandidate(
-            new RTCIceCandidate(
-              result.candidate,
-            ),
-          );
-
-          return;
-        }
-
-        /*
-         * Lucy started producing frames.
-         */
-        case "generation_started": {
-          console.log(
-            "================================",
-          );
-
-          console.log(
-            "LUCY STARTED GENERATING FRAMES",
-          );
-
-          console.log(
-            "================================",
-          );
-
-          return;
-        }
-
-        /*
-         * Prompt acknowledgement.
-         */
-        case "prompt_ack": {
-          if (
-            result.success === false
-          ) {
-            onError(
-              new Error(
-                `Lucy prompt failed: ${String(
-                  result.error ??
-                    "Unknown prompt error",
-                )}`,
-              ),
-            );
-          } else {
-            console.log(
-              "Lucy prompt accepted.",
-            );
-          }
-
-          return;
-        }
-
-        /*
-         * Reference image acknowledgement.
-         */
-        case "set_image_ack": {
-          if (
-            result.success === false
-          ) {
-            onError(
-              new Error(
-                `Lucy reference image failed: ${String(
-                  result.error ??
-                    "Unknown reference image error",
-                )}`,
-              ),
-            );
-          } else {
-            console.log(
-              "Lucy reference image accepted.",
-            );
-          }
-
-          return;
-        }
-
-        /*
-         * Server/model error.
-         */
-        case "error": {
-          const message =
-            String(
-              result.error ??
-                "Unknown Lucy server error",
-            );
-
-          console.error(
-            "LUCY SERVER ERROR:",
-            message,
-          );
-
-          onError(
-            new Error(
-              `Lucy server error: ${message}`,
-            ),
-          );
-
-          return;
-        }
-
-        /*
-         * ICE restart.
-         */
-        case "ice-restart": {
-          if (
-            !peerConnection
-          ) {
-            return;
-          }
-
-          const turnConfig =
-            result.turn_config;
-
-          if (
-            !turnConfig?.server_url
-          ) {
-            console.warn(
-              "Lucy requested ICE restart without TURN configuration.",
-            );
-
-            return;
-          }
-
-          console.log(
-            "Lucy requested ICE restart.",
-          );
-
-          peerConnection.setConfiguration(
-            {
-              iceServers: [
-                {
-                  urls:
-                    "stun:stun.l.google.com:19302",
-                },
-                {
-                  urls:
-                    turnConfig.server_url,
-
-                  username:
-                    turnConfig.username,
-
-                  credential:
-                    turnConfig.credential,
-                },
-              ],
-            },
-          );
-
-          const offer =
-            await peerConnection.createOffer(
-              {
-                iceRestart: true,
-              },
-            );
-
-          await peerConnection.setLocalDescription(
-            offer,
-          );
-
-          if (
-            !peerConnection.localDescription
-          ) {
-            return;
-          }
-
-          connection.send({
-            type: "offer",
-
-            sdp:
-              peerConnection
-                .localDescription
-                .sdp,
-          });
-
-          console.log(
-            "Lucy ICE restart offer sent.",
-          );
-
-          return;
-        }
-
-        default: {
-          console.log(
-            "Lucy unhandled message:",
-            result,
-          );
-
-          return;
-        }
-      }
-    } catch (error) {
-      console.error(
-        "Lucy WebRTC processing error:",
-        error,
-      );
-
-      onError(error);
-    }
-  }
-
-  /*
-   * Connect this media session to the
-   * realtime connection.
-   */
-  internalConnection.__setLucySignalHandler?.(
-    handleResult,
-  );
-
-  return {
-    close: () => {
       closed = true;
-      connected = false;
 
-      /*
-       * Detach the signaling handler.
-       */
-      internalConnection.__setLucySignalHandler?.(
-        null,
+      console.log(
+        "Disconnecting Decart realtime...",
       );
 
-      if (peerConnection) {
-        peerConnection.ontrack =
-          null;
-
-        peerConnection.onicecandidate =
-          null;
-
-        peerConnection.onconnectionstatechange =
-          null;
-
-        peerConnection.oniceconnectionstatechange =
-          null;
-
-        peerConnection.close();
-
-        peerConnection = null;
+      try {
+        realtimeClient?.disconnect();
+      } catch (error) {
+        console.error(
+          "Decart disconnect failed:",
+          error,
+        );
       }
+
+      realtimeClient =
+        null;
+
+      connection.realtimeClient =
+        null;
 
       if (
         outputVideo.srcObject
@@ -941,7 +522,7 @@ export function createLucyMediaSession(
       }
 
       console.log(
-        "Lucy media session closed.",
+        "Decart media session closed.",
       );
     },
 
@@ -956,27 +537,18 @@ export async function handleLucyResult(
   result: unknown,
 ): Promise<void> {
   /*
-   * Kept for compatibility with the Studio.
+   * Kept because Studio.tsx already imports
+   * this function.
    *
-   * The normal path is now automatic through
-   * createLucyConnection().
-   */
-  const internalConnection =
-    connection as LucyConnection & {
-      __setLucySignalHandler?: (
-        handler: SignalHandler | null,
-      ) => void;
-    };
-
-  /*
-   * There is intentionally no second dispatch
-   * here. createLucyConnection() already routes
-   * every fal result to the active session.
+   * Decart's current SDK handles realtime
+   * WebRTC signaling internally, so Studio
+   * does not need to manually process ICE/SDP
+   * messages anymore.
    */
   console.log(
-    "Lucy manual result received:",
+    "Decart realtime result:",
     result,
   );
 
-  void internalConnection;
+  void connection;
 }
