@@ -8,10 +8,19 @@ export type LucyConnection = ReturnType<
 
 export type LucyMediaSession = {
   close: () => void;
+  setPrompt: (
+    prompt: string,
+    enhancePrompt?: boolean,
+  ) => void;
+  setReferenceImage: (
+    referenceImageUrl: string,
+    prompt?: string,
+  ) => void;
 };
 
 type LucyResult = {
   type?: string;
+
   iceServers?: RTCIceServer[];
   iceservers?: RTCIceServer[];
   ice_servers?: RTCIceServer[];
@@ -23,14 +32,13 @@ type LucyResult = {
   error?: unknown;
 
   success?: boolean;
-};
 
-type LucyConnectionWithHandler =
-  LucyConnection & {
-    __lucySignalHandler?: (
-      result: unknown,
-    ) => Promise<void>;
+  turn_config?: {
+    server_url?: string;
+    username?: string;
+    credential?: string;
   };
+};
 
 export function createLucyConnection(
   onResult: (result: unknown) => void,
@@ -39,11 +47,27 @@ export function createLucyConnection(
   return fal.realtime.connect(
     LUCY_MODEL,
     {
-      connectionKey: `virofylive-${Date.now()}`,
+      connectionKey: `kelvinlive-${Date.now()}`,
+
       throttleInterval: 0,
 
-      onResult,
-      onError,
+      onResult: (result) => {
+        console.log(
+          "Lucy realtime message:",
+          result,
+        );
+
+        onResult(result);
+      },
+
+      onError: (error) => {
+        console.error(
+          "Lucy realtime connection error:",
+          error,
+        );
+
+        onError(error);
+      },
 
       tokenProvider: async (app) => {
         const response = await fetch(
@@ -90,8 +114,95 @@ export function createLucyMediaSession(
     | null = null;
 
   let closed = false;
+  let connected = false;
 
-  let connectionEstablished = false;
+  /*
+   * Send a prompt to Lucy.
+   */
+  function setPrompt(
+    prompt: string,
+    enhancePrompt = true,
+  ): void {
+    if (closed) {
+      return;
+    }
+
+    const cleanPrompt = prompt.trim();
+
+    if (!cleanPrompt) {
+      return;
+    }
+
+    try {
+      connection.send({
+        prompt: cleanPrompt,
+        enhance_prompt: enhancePrompt,
+      });
+
+      console.log(
+        "Lucy prompt sent:",
+        cleanPrompt,
+      );
+    } catch (error) {
+      console.error(
+        "Lucy prompt send failed:",
+        error,
+      );
+
+      onError(error);
+    }
+  }
+
+  /*
+   * Send/update the reference image.
+   *
+   * Lucy 2.5 accepts a reference image together
+   * with the transformation prompt.
+   */
+  function setReferenceImage(
+    referenceImageUrl: string,
+    prompt?: string,
+  ): void {
+    if (closed) {
+      return;
+    }
+
+    const cleanImage =
+      referenceImageUrl.trim();
+
+    if (!cleanImage) {
+      return;
+    }
+
+    try {
+      const message: Record<
+        string,
+        unknown
+      > = {
+        reference_image_url:
+          cleanImage,
+        enhance_prompt: true,
+      };
+
+      if (prompt?.trim()) {
+        message.prompt =
+          prompt.trim();
+      }
+
+      connection.send(message);
+
+      console.log(
+        "Lucy reference image sent.",
+      );
+    } catch (error) {
+      console.error(
+        "Lucy reference image send failed:",
+        error,
+      );
+
+      onError(error);
+    }
+  }
 
   async function createPeerConnection(
     rawIceServers: RTCIceServer[],
@@ -107,17 +218,13 @@ export function createLucyMediaSession(
 
     peerConnection =
       new RTCPeerConnection({
-        iceServers: rawIceServers.map(
-          (server) => ({
-            urls: server.urls,
-            username:
-              server.username,
-            credential:
-              server.credential,
-          }),
-        ),
+        iceServers:
+          rawIceServers,
       });
 
+    /*
+     * Send the real camera tracks to Lucy.
+     */
     for (const track of inputStream.getTracks()) {
       peerConnection.addTrack(
         track,
@@ -125,6 +232,9 @@ export function createLucyMediaSession(
       );
     }
 
+    /*
+     * Receive the transformed video.
+     */
     peerConnection.ontrack = (
       event,
     ) => {
@@ -147,14 +257,21 @@ export function createLucyMediaSession(
         remoteStream;
 
       outputVideo.muted = true;
+      outputVideo.autoplay = true;
+      outputVideo.playsInline = true;
 
       void outputVideo
         .play()
         .then(() => {
-          connectionEstablished =
-            true;
+          if (!connected) {
+            connected = true;
 
-          onConnected();
+            console.log(
+              "Lucy transformation connected.",
+            );
+
+            onConnected();
+          }
         })
         .catch((error) => {
           console.error(
@@ -162,13 +279,16 @@ export function createLucyMediaSession(
             error,
           );
 
-          connectionEstablished =
-            true;
-
-          onConnected();
+          if (!connected) {
+            connected = true;
+            onConnected();
+          }
         });
     };
 
+    /*
+     * Send browser ICE candidates to Lucy.
+     */
     peerConnection.onicecandidate = (
       event,
     ) => {
@@ -199,6 +319,9 @@ export function createLucyMediaSession(
       }
     };
 
+    /*
+     * Monitor WebRTC connection.
+     */
     peerConnection.onconnectionstatechange =
       () => {
         if (
@@ -208,14 +331,22 @@ export function createLucyMediaSession(
           return;
         }
 
-        console.log(
-          "Lucy WebRTC state:",
-          peerConnection
-            .connectionState,
-        );
-
         const state =
           peerConnection.connectionState;
+
+        console.log(
+          "Lucy WebRTC state:",
+          state,
+        );
+
+        if (
+          state === "connected"
+        ) {
+          if (!connected) {
+            connected = true;
+            onConnected();
+          }
+        }
 
         if (
           state === "failed"
@@ -226,13 +357,21 @@ export function createLucyMediaSession(
             ),
           );
         }
+
+        if (
+          state === "disconnected"
+        ) {
+          console.warn(
+            "Lucy WebRTC disconnected.",
+          );
+        }
       };
 
     peerConnection.oniceconnectionstatechange =
       () => {
         if (
-          !peerConnection ||
-          closed
+          closed ||
+          !peerConnection
         ) {
           return;
         }
@@ -244,6 +383,9 @@ export function createLucyMediaSession(
         );
       };
 
+    /*
+     * Create the WebRTC offer.
+     */
     const offer =
       await peerConnection.createOffer();
 
@@ -266,8 +408,15 @@ export function createLucyMediaSession(
           .localDescription
           .sdp,
     });
+
+    console.log(
+      "Lucy WebRTC offer sent.",
+    );
   }
 
+  /*
+   * Handle every message returned by fal.
+   */
   async function handleResult(
     rawResult: unknown,
   ): Promise<void> {
@@ -284,6 +433,9 @@ export function createLucyMediaSession(
     );
 
     try {
+      /*
+       * First WebRTC configuration.
+       */
       const iceServers =
         result.iceServers ??
         result.iceservers ??
@@ -301,6 +453,9 @@ export function createLucyMediaSession(
       }
 
       switch (result.type) {
+        /*
+         * Lucy's WebRTC answer.
+         */
         case "answer": {
           if (
             !peerConnection ||
@@ -316,9 +471,16 @@ export function createLucyMediaSession(
             },
           );
 
+          console.log(
+            "Lucy remote description applied.",
+          );
+
           return;
         }
 
+        /*
+         * Remote ICE candidate.
+         */
         case "icecandidate": {
           if (
             !peerConnection ||
@@ -336,14 +498,21 @@ export function createLucyMediaSession(
           return;
         }
 
+        /*
+         * Lucy has started producing
+         * transformed video frames.
+         */
         case "generation_started": {
           console.log(
-            "Lucy has started generating transformed frames.",
+            "Lucy started generating transformed frames.",
           );
 
           return;
         }
 
+        /*
+         * Prompt acknowledgement.
+         */
         case "prompt_ack": {
           if (
             result.success === false
@@ -352,15 +521,22 @@ export function createLucyMediaSession(
               new Error(
                 `Lucy prompt failed: ${String(
                   result.error ??
-                    "unknown error",
+                    "Unknown prompt error",
                 )}`,
               ),
+            );
+          } else {
+            console.log(
+              "Lucy prompt accepted.",
             );
           }
 
           return;
         }
 
+        /*
+         * Reference image acknowledgement.
+         */
         case "set_image_ack": {
           if (
             result.success === false
@@ -369,15 +545,22 @@ export function createLucyMediaSession(
               new Error(
                 `Lucy reference image failed: ${String(
                   result.error ??
-                    "unknown error",
+                    "Unknown reference image error",
                 )}`,
               ),
+            );
+          } else {
+            console.log(
+              "Lucy reference image accepted.",
             );
           }
 
           return;
         }
 
+        /*
+         * Server error.
+         */
         case "error": {
           onError(
             new Error(
@@ -391,6 +574,9 @@ export function createLucyMediaSession(
           return;
         }
 
+        /*
+         * ICE restart requested.
+         */
         case "ice-restart": {
           if (
             !peerConnection
@@ -399,19 +585,15 @@ export function createLucyMediaSession(
           }
 
           const turnConfig =
-            (
-              result as LucyResult & {
-                turn_config?: {
-                  server_url?: string;
-                  username?: string;
-                  credential?: string;
-                };
-              }
-            ).turn_config;
+            result.turn_config;
 
           if (
             !turnConfig?.server_url
           ) {
+            console.warn(
+              "Lucy requested ICE restart but no TURN server was provided.",
+            );
+
             return;
           }
 
@@ -445,9 +627,18 @@ export function createLucyMediaSession(
             offer,
           );
 
+          if (
+            !peerConnection.localDescription
+          ) {
+            return;
+          }
+
           connection.send({
             type: "offer",
-            sdp: offer.sdp,
+            sdp:
+              peerConnection
+                .localDescription
+                .sdp,
           });
 
           return;
@@ -466,15 +657,56 @@ export function createLucyMediaSession(
     }
   }
 
+  /*
+   * IMPORTANT:
+   *
+   * fal calls the onResult callback that was
+   * supplied to createLucyConnection().
+   *
+   * The media session must receive those
+   * signaling messages.
+   *
+   * We therefore replace the connection's
+   * callback with our WebRTC handler while
+   * preserving the original connection.
+   */
   const connectionWithHandler =
-    connection as LucyConnectionWithHandler;
+    connection as LucyConnection & {
+      __lucyOriginalOnResult?: (
+        result: unknown,
+      ) => void;
+      __lucySignalHandler?: (
+        result: unknown,
+      ) => Promise<void>;
+    };
 
   connectionWithHandler.__lucySignalHandler =
     handleResult;
 
+  /*
+   * The @fal-ai/client connection exposes
+   * its callback internally. To make the
+   * session robust, also install a small
+   * dispatcher when available.
+   *
+   * Our studio will use the explicit handler
+   * below if the SDK does not expose callback
+   * replacement.
+   */
+  const originalSend =
+    connection.send.bind(connection);
+
+  connectionWithHandler.send =
+    ((message: unknown) => {
+      return originalSend(
+        message as never,
+      );
+    }) as typeof connection.send;
+
   return {
     close: () => {
       closed = true;
+      connected = false;
 
       delete connectionWithHandler.__lucySignalHandler;
 
@@ -502,9 +734,35 @@ export function createLucyMediaSession(
         outputVideo.srcObject =
           null;
       }
-
-      connectionEstablished =
-        false;
     },
+
+    setPrompt,
+
+    setReferenceImage,
   };
+}
+
+/*
+ * This helper is used by the Studio to route
+ * fal realtime signaling into the active
+ * media session.
+ */
+export async function handleLucyResult(
+  connection: LucyConnection,
+  result: unknown,
+): Promise<void> {
+  const connectionWithHandler =
+    connection as LucyConnection & {
+      __lucySignalHandler?: (
+        result: unknown,
+      ) => Promise<void>;
+    };
+
+  if (
+    connectionWithHandler
+      .__lucySignalHandler
+  ) {
+    await connectionWithHandler
+      .__lucySignalHandler(result);
+  }
 }
