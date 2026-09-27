@@ -27,16 +27,11 @@ interface CameraDevice {
   label: string;
 }
 
-/*
- * Built-in default AI look preview.
- */
 const DEFAULT_LOOK_IMAGE =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c3aed'/%3E%3Cstop offset='0.5' stop-color='%2306b6d4'/%3E%3Cstop offset='1' stop-color='%23111827'/%3E%3C/linearGradient%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='35'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='500' height='500' fill='%230b1020'/%3E%3Ccircle cx='110' cy='100' r='130' fill='%237c3aed' opacity='.55' filter='url(%23b)'/%3E%3Ccircle cx='410' cy='380' r='160' fill='%2306b6d4' opacity='.45' filter='url(%23b)'/%3E%3Cellipse cx='250' cy='235' rx='105' ry='125' fill='url(%23g)'/%3E%3Cellipse cx='210' cy='220' rx='15' ry='20' fill='white' opacity='.9'/%3E%3Cellipse cx='290' cy='220' rx='15' ry='20' fill='white' opacity='.9'/%3E%3Cpath d='M190 285 Q250 330 310 285' fill='none' stroke='white' stroke-width='12' stroke-linecap='round' opacity='.9'/%3E%3Cpath d='M150 160 Q250 90 350 160' fill='none' stroke='%23e2e8f0' stroke-width='22' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E";
 
 export default function Studio() {
-  const videoRef =
-    useRef<HTMLVideoElement | null>(null);
-
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const transformedVideoRef =
     useRef<HTMLVideoElement | null>(null);
 
@@ -47,7 +42,8 @@ export default function Studio() {
     useRef<LucyConnection | null>(null);
 
   const lucySessionRef =
-    useRef<LucyMediaSession | null>(null);
+    useRef<L
+ucyMediaSession | null>(null);
 
   const [cameraOn, setCameraOn] =
     useState(false);
@@ -128,16 +124,13 @@ export default function Studio() {
         );
       }
     } catch {
-      // Device enumeration can fail before permission.
+      // Device enumeration may fail before permission.
     }
   }
 
   function stopLucy(): void {
     lucySessionRef.current?.close();
-
     lucySessionRef.current = null;
-
-    lucyConnectionRef.current?.close();
 
     lucyConnectionRef.current = null;
 
@@ -154,7 +147,8 @@ export default function Studio() {
   ): Promise<string> {
     return new Promise(
       (resolve, reject) => {
-        const reader = new FileReader();
+        const reader =
+          new FileReader();
 
         reader.onload = () => {
           if (
@@ -166,7 +160,6 @@ export default function Studio() {
                 "Unable to read the reference file.",
               ),
             );
-
             return;
           }
 
@@ -186,16 +179,6 @@ export default function Studio() {
     );
   }
 
-  /*
-   * START LUCY / DECART AI TRANSFORMATION
-   *
-   * IMPORTANT:
-   * Do not use connection.send().
-   *
-   * The current lucy.ts implementation exposes
-   * setPrompt() and setReferenceImage() on the
-   * media session.
-   */
   async function startLucy(
     inputStream: MediaStream,
     referenceFile?: File | null,
@@ -218,6 +201,24 @@ export default function Studio() {
       | null = null;
 
     try {
+      if (!transformedVideoRef.current) {
+        throw new Error(
+          "AI output video is not available.",
+        );
+      }
+
+      console.log(
+        "=================================",
+      );
+
+      console.log(
+        "STARTING LUCY AI TRANSFORMATION",
+      );
+
+      console.log(
+        "=================================",
+      );
+
       connection =
         createLucyConnection(
           (result) => {
@@ -230,7 +231,7 @@ export default function Studio() {
           },
           (error) => {
             console.error(
-              "Lucy error:",
+              "Lucy connection error:",
               error,
             );
 
@@ -247,12 +248,6 @@ export default function Studio() {
       lucyConnectionRef.current =
         connection;
 
-      if (!transformedVideoRef.current) {
-        throw new Error(
-          "AI output video is not available.",
-        );
-      }
-
       session =
         createLucyMediaSession(
           connection,
@@ -260,15 +255,7 @@ export default function Studio() {
           transformedVideoRef.current,
           () => {
             console.log(
-              "=================================",
-            );
-
-            console.log(
-              "LUCY AI TRANSFORMATION CONNECTED",
-            );
-
-            console.log(
-              "=================================",
+              "LUCY TRANSFORMATION IS LIVE",
             );
 
             setAiTransforming(false);
@@ -299,47 +286,58 @@ export default function Studio() {
           : "Transform the person in the live camera into a cinematic futuristic AI character while preserving the person's full-body movement, pose, facial motion, camera motion, and natural live-video movement.";
 
       /*
-       * Reference image transformation.
+       * IMPORTANT:
+       * The current lucy.ts API uses the MEDIA SESSION,
+       * not connection.send().
        */
       if (referenceFile) {
+        console.log(
+          "Preparing reference image for Lucy...",
+        );
+
         const referenceUrl =
           await fileToDataUrl(
             referenceFile,
           );
 
-        if (!lucySessionRef.current) {
+        if (
+          !lucySessionRef.current
+        ) {
           throw new Error(
-            "Lucy session was closed before the reference image could be sent.",
+            "Lucy session closed before the reference image was ready.",
           );
         }
+
+        console.log(
+          "Sending reference image through Lucy media session...",
+        );
 
         lucySessionRef.current.setReferenceImage(
           referenceUrl,
           prompt,
         );
-
-        console.log(
-          "Lucy reference transformation requested.",
-        );
       } else {
-        /*
-         * Prompt-only transformation.
-         */
-        if (!lucySessionRef.current) {
+        if (
+          !lucySessionRef.current
+        ) {
           throw new Error(
-            "Lucy session was closed before the transformation prompt could be sent.",
+            "Lucy session is unavailable.",
           );
         }
+
+        console.log(
+          "Sending prompt through Lucy media session...",
+        );
 
         lucySessionRef.current.setPrompt(
           prompt,
           true,
         );
-
-        console.log(
-          "Lucy prompt transformation requested.",
-        );
       }
+
+      console.log(
+        "Lucy transformation request queued.",
+      );
     } catch (error) {
       console.error(
         "Unable to start Lucy:",
@@ -355,13 +353,12 @@ export default function Studio() {
       );
 
       session?.close();
-      connection?.close();
 
-      lucySessionRef.current =
-        null;
+      connection = null;
+      session = null;
 
-      lucyConnectionRef.current =
-        null;
+      lucySessionRef.current = null;
+      lucyConnectionRef.current = null;
     }
   }
 
@@ -378,8 +375,7 @@ export default function Studio() {
 
     try {
       if (
-        !navigator.mediaDevices
-          ?.getUserMedia
+        !navigator.mediaDevices?.getUserMedia
       ) {
         throw new Error(
           "Camera access is not supported by this browser.",
@@ -432,8 +428,7 @@ export default function Studio() {
           },
         );
 
-      streamRef.current =
-        stream;
+      streamRef.current = stream;
 
       const audioTrack =
         stream.getAudioTracks()[0];
@@ -451,7 +446,6 @@ export default function Studio() {
       }
 
       setCameraOn(true);
-
       setCameraPermission(
         "granted",
       );
@@ -465,10 +459,12 @@ export default function Studio() {
         );
       }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Camera error:",
+        error,
+      );
 
       setCameraOn(false);
-
       setCameraPermission(
         "denied",
       );
@@ -548,7 +544,6 @@ export default function Studio() {
       setCameraError(
         "Turn on your camera before starting a live stream.",
       );
-
       return;
     }
 
@@ -593,7 +588,6 @@ export default function Studio() {
       setCameraError(
         "Please choose an image or video file.",
       );
-
       return;
     }
 
@@ -604,14 +598,9 @@ export default function Studio() {
     }
 
     const previewUrl =
-      URL.createObjectURL(
-        file,
-      );
+      URL.createObjectURL(file);
 
-    setSelectedReference(
-      file,
-    );
-
+    setSelectedReference(file);
     setReferencePreview(
       previewUrl,
     );
@@ -626,10 +615,7 @@ export default function Studio() {
       );
     }
 
-    setSelectedReference(
-      null,
-    );
-
+    setSelectedReference(null);
     setReferencePreview("");
   }
 
@@ -641,15 +627,11 @@ export default function Studio() {
       setCameraError(
         "Turn on your camera before starting the AI transformation.",
       );
-
       return;
     }
 
     setAiLook(true);
-
-    setShowLookPicker(
-      false,
-    );
+    setShowLookPicker(false);
 
     await startLucy(
       streamRef.current,
@@ -661,7 +643,6 @@ export default function Studio() {
     stopLucy();
 
     setAiLook(false);
-
     setAiError("");
   }
 
@@ -680,7 +661,6 @@ export default function Studio() {
       }
     };
 
-    // Only request camera on initial page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -715,7 +695,9 @@ export default function Studio() {
   }, [live]);
 
   const time = `${String(
-    Math.floor(seconds / 60),
+    Math.floor(
+      seconds / 60,
+    ),
   ).padStart(2, "0")}:${String(
     seconds % 60,
   ).padStart(2, "0")}`;
@@ -960,9 +942,7 @@ export default function Studio() {
                 className="btn-primary flex items-center justify-center gap-2 rounded-xl py-3.5 font-bold"
                 data-testid="button-go-live"
               >
-                <Radio
-                  size={17}
-                />
+                <Radio size={17} />
 
                 {live
                   ? "End stream"
@@ -982,9 +962,7 @@ export default function Studio() {
                 data-testid="button-toggle-camera"
               >
                 {cameraOn ? (
-                  <Video
-                    size={17}
-                  />
+                  <Video size={17} />
                 ) : (
                   <VideoOff
                     size={17}
@@ -1009,9 +987,7 @@ export default function Studio() {
                 data-testid="button-toggle-mic"
               >
                 {micOn ? (
-                  <Mic
-                    size={17}
-                  />
+                  <Mic size={17} />
                 ) : (
                   <MicOff
                     size={17}
@@ -1036,8 +1012,7 @@ export default function Studio() {
                   }
                   onChange={(event) =>
                     void handleCameraChange(
-                      event.target
-                        .value,
+                      event.target.value,
                     )
                   }
                   className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
@@ -1089,8 +1064,7 @@ export default function Studio() {
                   }
                   onChange={(event) =>
                     setResolution(
-                      event.target
-                        .value,
+                      event.target.value,
                     )
                   }
                   className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
