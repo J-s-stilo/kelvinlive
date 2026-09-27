@@ -1543,4 +1543,3 @@ className={size-1.5 rounded-full ${   live   ? "live-pulse bg-rose-300"   : "bg-
 );
 }
 
-This is the version I was using before so use it to correct it
