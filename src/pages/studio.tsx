@@ -29,27 +29,43 @@ interface CameraDevice {
 
 /*
  * Built-in default AI look preview.
- * This is an SVG image, so the default preview is always available
- * without depending on another website.
  */
 const DEFAULT_LOOK_IMAGE =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c3aed'/%3E%3Cstop offset='0.5' stop-color='%2306b6d4'/%3E%3Cstop offset='1' stop-color='%23111827'/%3E%3C/linearGradient%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='35'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='500' height='500' fill='%230b1020'/%3E%3Ccircle cx='110' cy='100' r='130' fill='%237c3aed' opacity='.55' filter='url(%23b)'/%3E%3Ccircle cx='410' cy='380' r='160' fill='%2306b6d4' opacity='.45' filter='url(%23b)'/%3E%3Cellipse cx='250' cy='235' rx='105' ry='125' fill='url(%23g)'/%3E%3Cellipse cx='210' cy='220' rx='15' ry='20' fill='white' opacity='.9'/%3E%3Cellipse cx='290' cy='220' rx='15' ry='20' fill='white' opacity='.9'/%3E%3Cpath d='M190 285 Q250 330 310 285' fill='none' stroke='white' stroke-width='12' stroke-linecap='round' opacity='.9'/%3E%3Cpath d='M150 160 Q250 90 350 160' fill='none' stroke='%23e2e8f0' stroke-width='22' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E";
 
 export default function Studio() {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const transformedVideoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const videoRef =
+    useRef<HTMLVideoElement | null>(null);
 
-  const lucyConnectionRef = useRef<LucyConnection | null>(null);
-  const lucySessionRef = useRef<LucyMediaSession | null>(null);
+  const transformedVideoRef =
+    useRef<HTMLVideoElement | null>(null);
 
-  const [cameraOn, setCameraOn] = useState(false);
-  const [micOn, setMicOn] = useState(true);
+  const streamRef =
+    useRef<MediaStream | null>(null);
 
-  const [aiLook, setAiLook] = useState(false);
-  const [aiTransforming, setAiTransforming] = useState(false);
-  const [aiError, setAiError] = useState("");
-  const [showLookPicker, setShowLookPicker] = useState(false);
+  const lucyConnectionRef =
+    useRef<LucyConnection | null>(null);
+
+  const lucySessionRef =
+    useRef<LucyMediaSession | null>(null);
+
+  const [cameraOn, setCameraOn] =
+    useState(false);
+
+  const [micOn, setMicOn] =
+    useState(true);
+
+  const [aiLook, setAiLook] =
+    useState(false);
+
+  const [aiTransforming, setAiTransforming] =
+    useState(false);
+
+  const [aiError, setAiError] =
+    useState("");
+
+  const [showLookPicker, setShowLookPicker] =
+    useState(false);
 
   const [selectedReference, setSelectedReference] =
     useState<File | null>(null);
@@ -57,17 +73,28 @@ export default function Studio() {
   const [referencePreview, setReferencePreview] =
     useState("");
 
-  const [resolution, setResolution] = useState("1080p");
-  const [live, setLive] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [resolution, setResolution] =
+    useState("1080p");
 
-  const [cameraPermission, setCameraPermission] = useState<
-    "idle" | "requesting" | "granted" | "denied"
-  >("idle");
+  const [live, setLive] =
+    useState(false);
 
-  const [cameraError, setCameraError] = useState("");
-  const [cameras, setCameras] = useState<CameraDevice[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState("");
+  const [seconds, setSeconds] =
+    useState(0);
+
+  const [cameraPermission, setCameraPermission] =
+    useState<
+      "idle" | "requesting" | "granted" | "denied"
+    >("idle");
+
+  const [cameraError, setCameraError] =
+    useState("");
+
+  const [cameras, setCameras] =
+    useState<CameraDevice[]>([]);
+
+  const [selectedCamera, setSelectedCamera] =
+    useState("");
 
   async function loadCameras(): Promise<void> {
     if (!navigator.mediaDevices?.enumerateDevices) {
@@ -80,12 +107,14 @@ export default function Studio() {
 
       const videoDevices = devices
         .filter(
-          (device) => device.kind === "videoinput",
+          (device) =>
+            device.kind === "videoinput",
         )
         .map((device, index) => ({
           deviceId: device.deviceId,
           label:
-            device.label || `Camera ${index + 1}`,
+            device.label ||
+            `Camera ${index + 1}`,
         }));
 
       setCameras(videoDevices);
@@ -105,39 +134,68 @@ export default function Studio() {
 
   function stopLucy(): void {
     lucySessionRef.current?.close();
+
     lucySessionRef.current = null;
 
     lucyConnectionRef.current?.close();
+
     lucyConnectionRef.current = null;
 
     if (transformedVideoRef.current) {
-      transformedVideoRef.current.srcObject = null;
+      transformedVideoRef.current.srcObject =
+        null;
     }
 
     setAiTransforming(false);
   }
 
-  function fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+  function fileToDataUrl(
+    file: File,
+  ): Promise<string> {
+    return new Promise(
+      (resolve, reject) => {
+        const reader = new FileReader();
 
-      reader.onload = () => {
-        if (typeof reader.result !== "string") {
-          reject(new Error("Unable to read the reference file."));
-          return;
-        }
+        reader.onload = () => {
+          if (
+            typeof reader.result !==
+            "string"
+          ) {
+            reject(
+              new Error(
+                "Unable to read the reference file.",
+              ),
+            );
 
-        resolve(reader.result);
-      };
+            return;
+          }
 
-      reader.onerror = () => {
-        reject(new Error("Unable to read the reference file."));
-      };
+          resolve(reader.result);
+        };
 
-      reader.readAsDataURL(file);
-    });
+        reader.onerror = () => {
+          reject(
+            new Error(
+              "Unable to read the reference file.",
+            ),
+          );
+        };
+
+        reader.readAsDataURL(file);
+      },
+    );
   }
 
+  /*
+   * START LUCY / DECART AI TRANSFORMATION
+   *
+   * IMPORTANT:
+   * Do not use connection.send().
+   *
+   * The current lucy.ts implementation exposes
+   * setPrompt() and setReferenceImage() on the
+   * media session.
+   */
   async function startLucy(
     inputStream: MediaStream,
     referenceFile?: File | null,
@@ -147,85 +205,163 @@ export default function Studio() {
     }
 
     stopLucy();
+
     setAiError("");
     setAiTransforming(true);
 
-    let connection: LucyConnection | null = null;
-    let session: LucyMediaSession | null = null;
+    let connection:
+      | LucyConnection
+      | null = null;
+
+    let session:
+      | LucyMediaSession
+      | null = null;
 
     try {
-      connection = createLucyConnection(
-        (result) => {
-          if (connection) {
-            void handleLucyResult(connection, result);
-          }
-        },
-        (error) => {
-          console.error("Lucy error:", error);
-          setAiTransforming(false);
-          setAiError(
-            error instanceof Error
-              ? error.message
-              : "The AI transformation could not start.",
-          );
-        },
-      );
+      connection =
+        createLucyConnection(
+          (result) => {
+            if (connection) {
+              void handleLucyResult(
+                connection,
+                result,
+              );
+            }
+          },
+          (error) => {
+            console.error(
+              "Lucy error:",
+              error,
+            );
 
-      lucyConnectionRef.current = connection;
+            setAiTransforming(false);
 
-      session = createLucyMediaSession(
-        connection,
-        inputStream,
-        transformedVideoRef.current!,
-        () => {
-          setAiTransforming(false);
-          setAiError("");
-        },
-        (error) => {
-          console.error("Lucy media error:", error);
-          setAiTransforming(false);
-          setAiError(
-            error instanceof Error
-              ? error.message
-              : "The AI transformation connection failed.",
-          );
-        },
-      );
+            setAiError(
+              error instanceof Error
+                ? error.message
+                : "The AI transformation could not start.",
+            );
+          },
+        );
 
-      lucySessionRef.current = session;
+      lucyConnectionRef.current =
+        connection;
 
-      const prompt = referenceFile
-        ? "Transform the person in the live camera into the person or character shown in the reference image. Preserve the person's full-body movement, pose, facial motion, camera motion, lighting, and natural live-video movement."
-        : "Transform the person in the live camera into a cinematic futuristic AI character while preserving the person's full-body movement, pose, facial motion, camera motion, and natural live-video movement.";
-
-      if (referenceFile) {
-        const referenceUrl = await fileToDataUrl(referenceFile);
-
-        connection.send({
-          prompt,
-          reference_image_url: referenceUrl,
-          enable_prompt_expansion: true,
-        });
-      } else {
-        connection.send({
-          prompt,
-          enable_prompt_expansion: true,
-        });
+      if (!transformedVideoRef.current) {
+        throw new Error(
+          "AI output video is not available.",
+        );
       }
 
-      console.log("Lucy transformation request sent.");
+      session =
+        createLucyMediaSession(
+          connection,
+          inputStream,
+          transformedVideoRef.current,
+          () => {
+            console.log(
+              "=================================",
+            );
+
+            console.log(
+              "LUCY AI TRANSFORMATION CONNECTED",
+            );
+
+            console.log(
+              "=================================",
+            );
+
+            setAiTransforming(false);
+            setAiError("");
+          },
+          (error) => {
+            console.error(
+              "Lucy media error:",
+              error,
+            );
+
+            setAiTransforming(false);
+
+            setAiError(
+              error instanceof Error
+                ? error.message
+                : "The AI transformation connection failed.",
+            );
+          },
+        );
+
+      lucySessionRef.current =
+        session;
+
+      const prompt =
+        referenceFile
+          ? "Transform the person in the live camera into the person or character shown in the reference image. Preserve the person's full-body movement, pose, facial motion, camera motion, lighting, and natural live-video movement."
+          : "Transform the person in the live camera into a cinematic futuristic AI character while preserving the person's full-body movement, pose, facial motion, camera motion, and natural live-video movement.";
+
+      /*
+       * Reference image transformation.
+       */
+      if (referenceFile) {
+        const referenceUrl =
+          await fileToDataUrl(
+            referenceFile,
+          );
+
+        if (!lucySessionRef.current) {
+          throw new Error(
+            "Lucy session was closed before the reference image could be sent.",
+          );
+        }
+
+        lucySessionRef.current.setReferenceImage(
+          referenceUrl,
+          prompt,
+        );
+
+        console.log(
+          "Lucy reference transformation requested.",
+        );
+      } else {
+        /*
+         * Prompt-only transformation.
+         */
+        if (!lucySessionRef.current) {
+          throw new Error(
+            "Lucy session was closed before the transformation prompt could be sent.",
+          );
+        }
+
+        lucySessionRef.current.setPrompt(
+          prompt,
+          true,
+        );
+
+        console.log(
+          "Lucy prompt transformation requested.",
+        );
+      }
     } catch (error) {
-      console.error("Unable to start Lucy:", error);
+      console.error(
+        "Unable to start Lucy:",
+        error,
+      );
+
       setAiTransforming(false);
+
       setAiError(
         error instanceof Error
           ? error.message
           : "Unable to start the AI transformation.",
       );
+
       session?.close();
       connection?.close();
-      lucySessionRef.current = null;
-      lucyConnectionRef.current = null;
+
+      lucySessionRef.current =
+        null;
+
+      lucyConnectionRef.current =
+        null;
     }
   }
 
@@ -233,11 +369,18 @@ export default function Studio() {
     deviceId?: string,
   ): Promise<void> {
     stopLucy();
-    setCameraPermission("requesting");
+
+    setCameraPermission(
+      "requesting",
+    );
+
     setCameraError("");
 
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
+      if (
+        !navigator.mediaDevices
+          ?.getUserMedia
+      ) {
         throw new Error(
           "Camera access is not supported by this browser.",
         );
@@ -246,68 +389,89 @@ export default function Studio() {
       if (streamRef.current) {
         streamRef.current
           .getTracks()
-          .forEach((track) => track.stop());
+          .forEach((track) =>
+            track.stop(),
+          );
 
         streamRef.current = null;
       }
 
       const videoWidth =
-        resolution === "1080p" ? 1920 : 1280;
+        resolution === "1080p"
+          ? 1920
+          : 1280;
 
       const videoHeight =
-        resolution === "1080p" ? 1080 : 720;
+        resolution === "1080p"
+          ? 1080
+          : 720;
 
       const stream =
-        await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: {
-              ideal: videoWidth,
+        await navigator.mediaDevices.getUserMedia(
+          {
+            video: {
+              width: {
+                ideal: videoWidth,
+              },
+              height: {
+                ideal: videoHeight,
+              },
+              ...(deviceId
+                ? {
+                    deviceId: {
+                      exact: deviceId,
+                    },
+                  }
+                : {
+                    facingMode: {
+                      ideal: "user",
+                    },
+                  }),
             },
-            height: {
-              ideal: videoHeight,
-            },
-            ...(deviceId
-              ? {
-                  deviceId: {
-                    exact: deviceId,
-                  },
-                }
-              : {
-                  facingMode: {
-                    ideal: "user",
-                  },
-                }),
+            audio: true,
           },
-          audio: true,
-        });
+        );
 
-      streamRef.current = stream;
+      streamRef.current =
+        stream;
 
       const audioTrack =
         stream.getAudioTracks()[0];
 
       if (audioTrack) {
-        audioTrack.enabled = micOn;
+        audioTrack.enabled =
+          micOn;
       }
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject =
+          stream;
+
         await videoRef.current.play();
       }
 
       setCameraOn(true);
-      setCameraPermission("granted");
+
+      setCameraPermission(
+        "granted",
+      );
 
       await loadCameras();
 
       if (aiLook) {
-        await startLucy(stream, selectedReference);
+        await startLucy(
+          stream,
+          selectedReference,
+        );
       }
     } catch (error) {
       console.error(error);
 
       setCameraOn(false);
-      setCameraPermission("denied");
+
+      setCameraPermission(
+        "denied",
+      );
 
       setCameraError(
         "Camera access was not allowed. Please allow camera and microphone access in your browser settings, then try again.",
@@ -321,13 +485,16 @@ export default function Studio() {
     if (streamRef.current) {
       streamRef.current
         .getTracks()
-        .forEach((track) => track.stop());
+        .forEach((track) =>
+          track.stop(),
+        );
 
       streamRef.current = null;
     }
 
     if (videoRef.current) {
-      videoRef.current.srcObject = null;
+      videoRef.current.srcObject =
+        null;
     }
 
     setCameraOn(false);
@@ -345,25 +512,34 @@ export default function Studio() {
   }
 
   function toggleMic(): void {
-    const nextMicState = !micOn;
+    const nextMicState =
+      !micOn;
 
     setMicOn(nextMicState);
 
     const audioTracks =
-      streamRef.current?.getAudioTracks() ?? [];
+      streamRef.current?.getAudioTracks() ??
+      [];
 
-    audioTracks.forEach((track) => {
-      track.enabled = nextMicState;
-    });
+    audioTracks.forEach(
+      (track) => {
+        track.enabled =
+          nextMicState;
+      },
+    );
   }
 
   async function handleCameraChange(
     deviceId: string,
   ): Promise<void> {
-    setSelectedCamera(deviceId);
+    setSelectedCamera(
+      deviceId,
+    );
 
     if (cameraOn) {
-      await startCamera(deviceId);
+      await startCamera(
+        deviceId,
+      );
     }
   }
 
@@ -372,11 +548,13 @@ export default function Studio() {
       setCameraError(
         "Turn on your camera before starting a live stream.",
       );
+
       return;
     }
 
     setLive((value) => {
-      const nextValue = !value;
+      const nextValue =
+        !value;
 
       if (!nextValue) {
         setSeconds(0);
@@ -386,77 +564,92 @@ export default function Studio() {
     });
   }
 
-  /*
-   * OPEN AI LOOK PICKER
-   */
   function openLookPicker(): void {
     setShowLookPicker(true);
   }
 
-  /*
-   * CLOSE AI LOOK PICKER
-   */
   function closeLookPicker(): void {
     setShowLookPicker(false);
   }
 
-  /*
-   * UPLOAD IMAGE / VIDEO / AVATAR
-   */
   function handleReferenceUpload(
     event: React.ChangeEvent<HTMLInputElement>,
   ): void {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
     if (
-      !file.type.startsWith("image/") &&
-      !file.type.startsWith("video/")
+      !file.type.startsWith(
+        "image/",
+      ) &&
+      !file.type.startsWith(
+        "video/",
+      )
     ) {
       setCameraError(
         "Please choose an image or video file.",
       );
+
       return;
     }
 
     if (referencePreview) {
-      URL.revokeObjectURL(referencePreview);
+      URL.revokeObjectURL(
+        referencePreview,
+      );
     }
 
     const previewUrl =
-      URL.createObjectURL(file);
+      URL.createObjectURL(
+        file,
+      );
 
-    setSelectedReference(file);
-    setReferencePreview(previewUrl);
+    setSelectedReference(
+      file,
+    );
+
+    setReferencePreview(
+      previewUrl,
+    );
+
     setCameraError("");
   }
 
-  /*
-   * REMOVE SELECTED REFERENCE
-   */
   function removeReference(): void {
     if (referencePreview) {
-      URL.revokeObjectURL(referencePreview);
+      URL.revokeObjectURL(
+        referencePreview,
+      );
     }
 
-    setSelectedReference(null);
+    setSelectedReference(
+      null,
+    );
+
     setReferencePreview("");
   }
 
-  /*
-   * APPLY AI LOOK
-   */
   async function applyAiLook(): Promise<void> {
-    if (!cameraOn || !streamRef.current) {
-      setCameraError("Turn on your camera before starting the AI transformation.");
+    if (
+      !cameraOn ||
+      !streamRef.current
+    ) {
+      setCameraError(
+        "Turn on your camera before starting the AI transformation.",
+      );
+
       return;
     }
 
     setAiLook(true);
-    setShowLookPicker(false);
+
+    setShowLookPicker(
+      false,
+    );
 
     await startLucy(
       streamRef.current,
@@ -464,12 +657,11 @@ export default function Studio() {
     );
   }
 
-  /*
-   * TURN OFF AI LOOK
-   */
   function disableAiLook(): void {
     stopLucy();
+
     setAiLook(false);
+
     setAiError("");
   }
 
@@ -482,7 +674,9 @@ export default function Studio() {
       if (streamRef.current) {
         streamRef.current
           .getTracks()
-          .forEach((track) => track.stop());
+          .forEach((track) =>
+            track.stop(),
+          );
       }
     };
 
@@ -490,13 +684,12 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /*
-   * CLEAN UP UPLOADED IMAGE / VIDEO PREVIEW
-   */
   useEffect(() => {
     return () => {
       if (referencePreview) {
-        URL.revokeObjectURL(referencePreview);
+        URL.revokeObjectURL(
+          referencePreview,
+        );
       }
     };
   }, [referencePreview]);
@@ -506,14 +699,18 @@ export default function Studio() {
       return;
     }
 
-    const timer = window.setInterval(() => {
-      setSeconds(
-        (value) => value + 1,
-      );
-    }, 1000);
+    const timer =
+      window.setInterval(() => {
+        setSeconds(
+          (value) =>
+            value + 1,
+        );
+      }, 1000);
 
     return () => {
-      window.clearInterval(timer);
+      window.clearInterval(
+        timer,
+      );
     };
   }, [live]);
 
@@ -586,7 +783,6 @@ export default function Studio() {
               </span>
             </div>
 
-            {/* REAL CAMERA AREA */}
             <div
               className="relative h-[68vh] min-h-[500px] max-h-[760px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-black sm:h-[560px]"
               data-testid="display-camera-preview"
@@ -599,46 +795,60 @@ export default function Studio() {
                     muted
                     playsInline
                     className={`absolute inset-0 h-full w-full object-cover ${
-                      aiLook ? "opacity-0" : "opacity-100"
+                      aiLook
+                        ? "opacity-0"
+                        : "opacity-100"
                     }`}
                     data-testid="video-camera-preview"
                   />
 
                   <video
-                    ref={transformedVideoRef}
+                    ref={
+                      transformedVideoRef
+                    }
                     autoPlay
                     muted
                     playsInline
                     className={`absolute inset-0 h-full w-full object-cover ${
-                      aiLook ? "opacity-100" : "pointer-events-none opacity-0"
+                      aiLook
+                        ? "opacity-100"
+                        : "pointer-events-none opacity-0"
                     }`}
                     data-testid="video-ai-transformed-preview"
                   />
 
-                  {aiLook && aiTransforming && (
-                    <div className="absolute inset-0 grid place-items-center bg-black/35 backdrop-blur-[2px]">
-                      <div className="rounded-2xl border border-violet-300/20 bg-black/65 px-5 py-4 text-center shadow-2xl">
-                        <WandSparkles className="mx-auto animate-pulse text-violet-300" size={28} />
-                        <p className="mt-3 text-sm font-bold text-white">
-                          Starting AI transformation…
+                  {aiLook &&
+                    aiTransforming && (
+                      <div className="absolute inset-0 grid place-items-center bg-black/35 backdrop-blur-[2px]">
+                        <div className="rounded-2xl border border-violet-300/20 bg-black/65 px-5 py-4 text-center shadow-2xl">
+                          <WandSparkles
+                            className="mx-auto animate-pulse text-violet-300"
+                            size={28}
+                          />
+
+                          <p className="mt-3 text-sm font-bold text-white">
+                            Starting AI transformation…
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            Connecting your live camera to Lucy 2.5
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                  {aiLook &&
+                    aiError && (
+                      <div className="absolute inset-x-4 bottom-20 rounded-2xl border border-rose-300/20 bg-black/75 p-4 backdrop-blur">
+                        <p className="text-sm font-semibold text-rose-200">
+                          AI transformation error
                         </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          Connecting your live camera to Lucy 2.5
+
+                        <p className="mt-1 text-xs leading-5 text-slate-400">
+                          {aiError}
                         </p>
                       </div>
-                    </div>
-                  )}
-
-                  {aiLook && aiError && (
-                    <div className="absolute inset-x-4 bottom-20 rounded-2xl border border-rose-300/20 bg-black/75 p-4 backdrop-blur">
-                      <p className="text-sm font-semibold text-rose-200">
-                        AI transformation error
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">
-                        {aiError}
-                      </p>
-                    </div>
-                  )}
+                    )}
                 </>
               ) : (
                 <div className="absolute inset-0 grid place-items-center bg-[#080b11]">
@@ -681,29 +891,31 @@ export default function Studio() {
                 </div>
               )}
 
-              {cameraError && !cameraOn && (
-                <div className="absolute inset-x-4 bottom-20 rounded-2xl border border-rose-300/20 bg-black/75 p-4 backdrop-blur">
-                  <p className="text-sm font-semibold text-rose-200">
-                    Camera access needed
-                  </p>
+              {cameraError &&
+                !cameraOn && (
+                  <div className="absolute inset-x-4 bottom-20 rounded-2xl border border-rose-300/20 bg-black/75 p-4 backdrop-blur">
+                    <p className="text-sm font-semibold text-rose-200">
+                      Camera access needed
+                    </p>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    {cameraError}
-                  </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      {cameraError}
+                    </p>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void startCamera(
-                        selectedCamera || undefined,
-                      )
-                    }
-                    className="mt-3 rounded-lg bg-white/[.08] px-4 py-2 text-xs font-bold text-slate-200"
-                  >
-                    Allow camera again
-                  </button>
-                </div>
-              )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void startCamera(
+                          selectedCamera ||
+                            undefined,
+                        )
+                      }
+                      className="mt-3 rounded-lg bg-white/[.08] px-4 py-2 text-xs font-bold text-slate-200"
+                    >
+                      Allow camera again
+                    </button>
+                  </div>
+                )}
 
               <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-xs text-slate-200 backdrop-blur">
                 <span
@@ -723,28 +935,34 @@ export default function Studio() {
                     : "Camera off"}
               </div>
 
-              {aiLook && cameraOn && (
-                <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-violet-300/30 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 backdrop-blur">
-                  <WandSparkles size={13} />
+              {aiLook &&
+                cameraOn && (
+                  <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-violet-300/30 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 backdrop-blur">
+                    <WandSparkles
+                      size={13}
+                    />
 
-                  {aiTransforming
-                    ? "Connecting AI…"
-                    : selectedReference
-                      ? "AI reference active"
-                      : "AI look active"}
-                </div>
-              )}
+                    {aiTransforming
+                      ? "Connecting AI…"
+                      : selectedReference
+                        ? "AI reference active"
+                        : "AI look active"}
+                  </div>
+                )}
             </div>
 
-            {/* MAIN CONTROLS */}
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={toggleLive}
+                onClick={
+                  toggleLive
+                }
                 className="btn-primary flex items-center justify-center gap-2 rounded-xl py-3.5 font-bold"
                 data-testid="button-go-live"
               >
-                <Radio size={17} />
+                <Radio
+                  size={17}
+                />
 
                 {live
                   ? "End stream"
@@ -753,7 +971,9 @@ export default function Studio() {
 
               <button
                 type="button"
-                onClick={toggleCamera}
+                onClick={
+                  toggleCamera
+                }
                 className={`flex items-center justify-center gap-2 rounded-xl border py-3.5 font-semibold ${
                   cameraOn
                     ? "border-cyan-300/30 bg-cyan-300/[.06] text-cyan-100"
@@ -762,9 +982,13 @@ export default function Studio() {
                 data-testid="button-toggle-camera"
               >
                 {cameraOn ? (
-                  <Video size={17} />
+                  <Video
+                    size={17}
+                  />
                 ) : (
-                  <VideoOff size={17} />
+                  <VideoOff
+                    size={17}
+                  />
                 )}
 
                 {cameraOn
@@ -774,7 +998,9 @@ export default function Studio() {
 
               <button
                 type="button"
-                onClick={toggleMic}
+                onClick={
+                  toggleMic
+                }
                 className={`flex items-center justify-center gap-2 rounded-xl border py-3.5 font-semibold sm:col-span-2 ${
                   micOn
                     ? "border-white/10 bg-white/[.03] text-slate-200"
@@ -783,9 +1009,13 @@ export default function Studio() {
                 data-testid="button-toggle-mic"
               >
                 {micOn ? (
-                  <Mic size={17} />
+                  <Mic
+                    size={17}
+                  />
                 ) : (
-                  <MicOff size={17} />
+                  <MicOff
+                    size={17}
+                  />
                 )}
 
                 {micOn
@@ -794,7 +1024,6 @@ export default function Studio() {
               </button>
             </div>
 
-            {/* CAMERA + RESOLUTION */}
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_140px]">
               <label className="relative">
                 <span className="sr-only">
@@ -802,22 +1031,29 @@ export default function Studio() {
                 </span>
 
                 <select
-                  value={selectedCamera}
+                  value={
+                    selectedCamera
+                  }
                   onChange={(event) =>
                     void handleCameraChange(
-                      event.target.value,
+                      event.target
+                        .value,
                     )
                   }
                   className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
                   data-testid="select-camera"
                 >
-                  {cameras.length === 0 ? (
+                  {cameras.length ===
+                  0 ? (
                     <option value="">
                       Camera
                     </option>
                   ) : (
                     cameras.map(
-                      (camera, index) => (
+                      (
+                        camera,
+                        index,
+                      ) => (
                         <option
                           key={
                             camera.deviceId ||
@@ -827,7 +1063,9 @@ export default function Studio() {
                             camera.deviceId
                           }
                         >
-                          {camera.label}
+                          {
+                            camera.label
+                          }
                         </option>
                       ),
                     )
@@ -846,10 +1084,13 @@ export default function Studio() {
                 </span>
 
                 <select
-                  value={resolution}
+                  value={
+                    resolution
+                  }
                   onChange={(event) =>
                     setResolution(
-                      event.target.value,
+                      event.target
+                        .value,
                     )
                   }
                   className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
@@ -871,10 +1112,11 @@ export default function Studio() {
               </label>
             </div>
 
-            {/* AI LOOK BUTTON */}
             <button
               type="button"
-              onClick={openLookPicker}
+              onClick={
+                openLookPicker
+              }
               className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold ${
                 aiLook
                   ? "border-violet-300/40 bg-violet-300/[.1] text-violet-100"
@@ -882,7 +1124,9 @@ export default function Studio() {
               }`}
               data-testid="button-toggle-ai-look"
             >
-              <WandSparkles size={17} />
+              <WandSparkles
+                size={17}
+              />
 
               {aiLook
                 ? "AI look active"
@@ -898,7 +1142,9 @@ export default function Studio() {
             {aiLook && (
               <button
                 type="button"
-                onClick={disableAiLook}
+                onClick={
+                  disableAiLook
+                }
                 className="mt-2 w-full text-xs font-semibold text-slate-500 hover:text-slate-300"
               >
                 Turn off AI look
@@ -906,7 +1152,6 @@ export default function Studio() {
             )}
           </section>
 
-          {/* RIGHT SIDE */}
           <div className="space-y-7">
             <div className="panel rounded-[1.5rem] p-6">
               <div className="flex items-center justify-between">
@@ -995,7 +1240,9 @@ export default function Studio() {
               </div>
 
               <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                <Settings2 size={14} />
+                <Settings2
+                  size={14}
+                />
 
                 Camera and audio are ready to
                 configure
@@ -1033,14 +1280,12 @@ export default function Studio() {
         </div>
       </div>
 
-      {/* =====================================================
-          AI LOOK PICKER MODAL
-          ===================================================== */}
-
       {showLookPicker && (
         <div
           className="fixed inset-0 z-[100] flex items-end justify-center bg-black/75 p-3 backdrop-blur-md sm:items-center sm:p-6"
-          onClick={closeLookPicker}
+          onClick={
+            closeLookPicker
+          }
           data-testid="ai-look-picker-overlay"
         >
           <div
@@ -1050,7 +1295,6 @@ export default function Studio() {
             }
             data-testid="ai-look-picker"
           >
-            {/* MODAL HEADER */}
             <div className="flex items-start justify-between gap-4 p-6 sm:p-8">
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-100">
@@ -1066,7 +1310,9 @@ export default function Studio() {
 
               <button
                 type="button"
-                onClick={closeLookPicker}
+                onClick={
+                  closeLookPicker
+                }
                 className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/[.05] text-slate-200 hover:bg-white/[.1]"
                 aria-label="Close look picker"
                 data-testid="button-close-look-picker"
@@ -1077,10 +1323,8 @@ export default function Studio() {
               </button>
             </div>
 
-            {/* LOOK CARDS */}
             <div className="px-6 sm:px-8">
               <div className="flex flex-wrap gap-4">
-                {/* DEFAULT LOOK */}
                 <div
                   className={`w-[180px] overflow-hidden rounded-[1.5rem] border transition ${
                     !selectedReference
@@ -1115,7 +1359,9 @@ export default function Studio() {
                       )
                     ) : (
                       <img
-                        src={DEFAULT_LOOK_IMAGE}
+                        src={
+                          DEFAULT_LOOK_IMAGE
+                        }
                         alt="Default AI look"
                         className="h-full w-full object-cover"
                       />
@@ -1142,10 +1388,8 @@ export default function Studio() {
                 </div>
               </div>
 
-              {/* DIVIDER */}
               <div className="my-6 h-px bg-white/10" />
 
-              {/* UPLOAD BUTTON */}
               <label
                 className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-white/[.05] px-6 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[.09]"
                 data-testid="button-upload-reference"
@@ -1170,12 +1414,13 @@ export default function Studio() {
                 for your live transformation.
               </p>
 
-              {/* SELECTED FILE */}
               {selectedReference && (
                 <div className="mt-4 flex items-center justify-between rounded-xl border border-violet-300/20 bg-violet-300/[.05] p-3">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-violet-100">
-                      {selectedReference.name}
+                      {
+                        selectedReference.name
+                      }
                     </p>
 
                     <p className="mt-1 text-[11px] text-slate-500">
@@ -1195,7 +1440,6 @@ export default function Studio() {
                 </div>
               )}
 
-              {/* MODAL ACTIONS */}
               <div className="flex justify-end gap-2 py-6 sm:py-8">
                 <button
                   type="button"
@@ -1210,7 +1454,9 @@ export default function Studio() {
 
                 <button
                   type="button"
-                  onClick={() => void applyAiLook()}
+                  onClick={() =>
+                    void applyAiLook()
+                  }
                   className="rounded-xl bg-violet-300 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-violet-200"
                   data-testid="button-apply-ai-look"
                 >
