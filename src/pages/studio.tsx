@@ -1530,9 +1530,9 @@ return (
   className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${live ? "border-rose-300/30 bg-rose-300/[.07] text-rose-200" : "border-white/10 bg-white/[.04] text-slate-400"}`}
 data-testid="status-studio-pill"
 >
-<span
-className={size-1.5 rounded-full ${   live   ? "live-pulse bg-rose-300"   : "bg-slate-500"   }}
-/>
+className={`size-1.5 rounded-full ${live ? "live-pulse bg-rose-300" : "bg-slate-500"}`}
+  /<
+<s
 
 {live  
     ? "Live"  
