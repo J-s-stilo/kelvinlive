@@ -32,36 +32,19 @@ const DEFAULT_LOOK_IMAGE =
 
 export default function Studio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const transformedVideoRef =
-    useRef<HTMLVideoElement | null>(null);
+  const transformedVideoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const streamRef =
-    useRef<MediaStream | null>(null);
+  const lucyConnectionRef = useRef<L­ucyConnection | null>(null);
+  const lucySessionRef = useRef<L­ucyMediaSession | null>(null);
 
-  const lucyConnectionRef =
-    useRef<LucyConnection | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [micOn, setMicOn] = useState(true);
 
-  const lucySessionRef =
-    useRef<L
-ucyMediaSession | null>(null);
-
-  const [cameraOn, setCameraOn] =
-    useState(false);
-
-  const [micOn, setMicOn] =
-    useState(true);
-
-  const [aiLook, setAiLook] =
-    useState(false);
-
-  const [aiTransforming, setAiTransforming] =
-    useState(false);
-
-  const [aiError, setAiError] =
-    useState("");
-
-  const [showLookPicker, setShowLookPicker] =
-    useState(false);
+  const [aiLook, setAiLook] = useState(false);
+  const [aiTransforming, setAiTransforming] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [showLookPicker, setShowLookPicker] = useState(false);
 
   const [selectedReference, setSelectedReference] =
     useState<File | null>(null);
@@ -69,28 +52,17 @@ ucyMediaSession | null>(null);
   const [referencePreview, setReferencePreview] =
     useState("");
 
-  const [resolution, setResolution] =
-    useState("1080p");
+  const [resolution, setResolution] = useState("1080p");
+  const [live, setLive] = useState(false);
+  const [seconds, setSeconds] = useState(0);
 
-  const [live, setLive] =
-    useState(false);
+  const [cameraPermission, setCameraPermission] = useState<
+    "idle" | "requesting" | "granted" | "denied"
+  >("idle");
 
-  const [seconds, setSeconds] =
-    useState(0);
-
-  const [cameraPermission, setCameraPermission] =
-    useState<
-      "idle" | "requesting" | "granted" | "denied"
-    >("idle");
-
-  const [cameraError, setCameraError] =
-    useState("");
-
-  const [cameras, setCameras] =
-    useState<CameraDevice[]>([]);
-
-  const [selectedCamera, setSelectedCamera] =
-    useState("");
+  const [cameraError, setCameraError] = useState("");
+  const [cameras, setCameras] = useState<CameraDevice[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState("");
 
   async function loadCameras(): Promise<void> {
     if (!navigator.mediaDevices?.enumerateDevices) {
@@ -102,29 +74,19 @@ ucyMediaSession | null>(null);
         await navigator.mediaDevices.enumerateDevices();
 
       const videoDevices = devices
-        .filter(
-          (device) =>
-            device.kind === "videoinput",
-        )
+        .filter((device) => device.kind === "videoinput")
         .map((device, index) => ({
           deviceId: device.deviceId,
-          label:
-            device.label ||
-            `Camera ${index + 1}`,
+          label: device.label || `Camera ${index + 1}`,
         }));
 
       setCameras(videoDevices);
 
-      if (
-        !selectedCamera &&
-        videoDevices.length > 0
-      ) {
-        setSelectedCamera(
-          videoDevices[0].deviceId,
-        );
+      if (!selectedCamera && videoDevices.length > 0) {
+        setSelectedCamera(videoDevices[0].deviceId);
       }
     } catch {
-      // Device enumeration may fail before permission.
+      // Device enumeration can fail before permission.
     }
   }
 
@@ -135,50 +97,45 @@ ucyMediaSession | null>(null);
     lucyConnectionRef.current = null;
 
     if (transformedVideoRef.current) {
-      transformedVideoRef.current.srcObject =
-        null;
+      transformedVideoRef.current.srcObject = null;
     }
 
     setAiTransforming(false);
   }
 
-  function fileToDataUrl(
-    file: File,
-  ): Promise<string> {
-    return new Promise(
-      (resolve, reject) => {
-        const reader =
-          new FileReader();
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
 
-        reader.onload = () => {
-          if (
-            typeof reader.result !==
-            "string"
-          ) {
-            reject(
-              new Error(
-                "Unable to read the reference file.",
-              ),
-            );
-            return;
-          }
-
-          resolve(reader.result);
-        };
-
-        reader.onerror = () => {
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
           reject(
-            new Error(
-              "Unable to read the reference file.",
-            ),
+            new Error("Unable to read the reference file."),
           );
-        };
+          return;
+        }
 
-        reader.readAsDataURL(file);
-      },
-    );
+        resolve(reader.result);
+      };
+
+      reader.onerror = () => {
+        reject(
+          new Error("Unable to read the reference file."),
+        );
+      };
+
+      reader.readAsDataURL(file);
+    });
   }
 
+  /*
+   * START LUCY / DECART
+   *
+   * IMPORTANT:
+   * The current lucy.ts API does NOT expose connection.send().
+   * The correct controls are session.setPrompt() and
+   * session.setReferenceImage().
+   */
   async function startLucy(
     inputStream: MediaStream,
     referenceFile?: File | null,
@@ -188,156 +145,121 @@ ucyMediaSession | null>(null);
     }
 
     stopLucy();
-
     setAiError("");
     setAiTransforming(true);
 
-    let connection:
-      | LucyConnection
-      | null = null;
-
-    let session:
-      | LucyMediaSession
-      | null = null;
+    let connection: LucyConnection | null = null;
+    let session: LucyMediaSession | null = null;
 
     try {
+      connection = createLucyConnection(
+        (result) => {
+          if (connection) {
+            void handleLucyResult(
+              connection,
+              result,
+            );
+          }
+        },
+        (error) => {
+          console.error(
+            "Lucy error:",
+            error,
+          );
+
+          setAiTransforming(false);
+
+          setAiError(
+            error instanceof Error
+              ? error.message
+              : "The AI transformation could not start.",
+          );
+        },
+      );
+
+      lucyConnectionRef.current = connection;
+
       if (!transformedVideoRef.current) {
         throw new Error(
-          "AI output video is not available.",
+          "AI output video is not ready.",
         );
       }
 
-      console.log(
-        "=================================",
+      session = createLucyMediaSession(
+        connection,
+        inputStream,
+        transformedVideoRef.current,
+        () => {
+          console.log(
+            "Lucy transformation connected.",
+          );
+
+          setAiTransforming(false);
+          setAiError("");
+        },
+        (error) => {
+          console.error(
+            "Lucy media error:",
+            error,
+          );
+
+          setAiTransforming(false);
+
+          setAiError(
+            error instanceof Error
+              ? error.message
+              : "The AI transformation connection failed.",
+          );
+        },
       );
 
-      console.log(
-        "STARTING LUCY AI TRANSFORMATION",
-      );
+      lucySessionRef.current = session;
 
-      console.log(
-        "=================================",
-      );
-
-      connection =
-        createLucyConnection(
-          (result) => {
-            if (connection) {
-              void handleLucyResult(
-                connection,
-                result,
-              );
-            }
-          },
-          (error) => {
-            console.error(
-              "Lucy connection error:",
-              error,
-            );
-
-            setAiTransforming(false);
-
-            setAiError(
-              error instanceof Error
-                ? error.message
-                : "The AI transformation could not start.",
-            );
-          },
-        );
-
-      lucyConnectionRef.current =
-        connection;
-
-      session =
-        createLucyMediaSession(
-          connection,
-          inputStream,
-          transformedVideoRef.current,
-          () => {
-            console.log(
-              "LUCY TRANSFORMATION IS LIVE",
-            );
-
-            setAiTransforming(false);
-            setAiError("");
-          },
-          (error) => {
-            console.error(
-              "Lucy media error:",
-              error,
-            );
-
-            setAiTransforming(false);
-
-            setAiError(
-              error instanceof Error
-                ? error.message
-                : "The AI transformation connection failed.",
-            );
-          },
-        );
-
-      lucySessionRef.current =
-        session;
-
-      const prompt =
-        referenceFile
-          ? "Transform the person in the live camera into the person or character shown in the reference image. Preserve the person's full-body movement, pose, facial motion, camera motion, lighting, and natural live-video movement."
-          : "Transform the person in the live camera into a cinematic futuristic AI character while preserving the person's full-body movement, pose, facial motion, camera motion, and natural live-video movement.";
+      const prompt = referenceFile
+        ? "Transform the person in the live camera into the person or character shown in the reference image. Preserve the person's full-body movement, pose, facial motion, camera motion, lighting, and natural live-video movement."
+        : "Transform the person in the live camera into a cinematic futuristic AI character while preserving the person's full-body movement, pose, facial motion, camera motion, and natural live-video movement.";
 
       /*
-       * IMPORTANT:
-       * The current lucy.ts API uses the MEDIA SESSION,
-       * not connection.send().
+       * DO NOT use connection.send().
+       *
+       * lucy.ts queues these commands if Decart is
+       * still connecting, so it is safe to call them
+       * immediately after createLucyMediaSession().
        */
       if (referenceFile) {
-        console.log(
-          "Preparing reference image for Lucy...",
-        );
-
         const referenceUrl =
-          await fileToDataUrl(
-            referenceFile,
-          );
+          await fileToDataUrl(referenceFile);
 
-        if (
-          !lucySessionRef.current
-        ) {
+        if (!lucySessionRef.current) {
           throw new Error(
-            "Lucy session closed before the reference image was ready.",
+            "Lucy session was closed before the reference image was applied.",
           );
         }
-
-        console.log(
-          "Sending reference image through Lucy media session...",
-        );
 
         lucySessionRef.current.setReferenceImage(
           referenceUrl,
           prompt,
         );
-      } else {
-        if (
-          !lucySessionRef.current
-        ) {
-          throw new Error(
-            "Lucy session is unavailable.",
-          );
-        }
 
         console.log(
-          "Sending prompt through Lucy media session...",
+          "Lucy reference image queued.",
         );
+      } else {
+        if (!lucySessionRef.current) {
+          throw new Error(
+            "Lucy session was closed before the prompt was applied.",
+          );
+        }
 
         lucySessionRef.current.setPrompt(
           prompt,
           true,
         );
-      }
 
-      console.log(
-        "Lucy transformation request queued.",
-      );
+        console.log(
+          "Lucy prompt queued.",
+        );
+      }
     } catch (error) {
       console.error(
         "Unable to start Lucy:",
@@ -354,9 +276,6 @@ ucyMediaSession | null>(null);
 
       session?.close();
 
-      connection = null;
-      session = null;
-
       lucySessionRef.current = null;
       lucyConnectionRef.current = null;
     }
@@ -367,16 +286,11 @@ ucyMediaSession | null>(null);
   ): Promise<void> {
     stopLucy();
 
-    setCameraPermission(
-      "requesting",
-    );
-
+    setCameraPermission("requesting");
     setCameraError("");
 
     try {
-      if (
-        !navigator.mediaDevices?.getUserMedia
-      ) {
+      if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error(
           "Camera access is not supported by this browser.",
         );
@@ -385,48 +299,40 @@ ucyMediaSession | null>(null);
       if (streamRef.current) {
         streamRef.current
           .getTracks()
-          .forEach((track) =>
-            track.stop(),
-          );
+          .forEach((track) => track.stop());
 
         streamRef.current = null;
       }
 
       const videoWidth =
-        resolution === "1080p"
-          ? 1920
-          : 1280;
+        resolution === "1080p" ? 1920 : 1280;
 
       const videoHeight =
-        resolution === "1080p"
-          ? 1080
-          : 720;
+        resolution === "1080p" ? 1080 : 720;
 
       const stream =
-        await navigator.mediaDevices.getUserMedia(
-          {
-            video: {
-              width: {
-                ideal: videoWidth,
-              },
-              height: {
-                ideal: videoHeight,
-              },
-              ...(deviceId
-                ? {
-                    deviceId: {
-                      exact: deviceId,
-                    },
-                  }
-                : {
-                    facingMode: {
-                      ideal: "user",
-                    },
-                  }),
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: {
+              ideal: videoWidth,
             },
-            audio: true,
+            height: {
+              ideal: videoHeight,
+            },
+            ...(deviceId
+              ? {
+                  deviceId: {
+                    exact: deviceId,
+                  },
+                }
+              : {
+                  facingMode: {
+                    ideal: "user",
+                  },
+                }),
           },
-        );
+          audio: true,
+        });
 
       streamRef.current = stream;
 
@@ -434,21 +340,16 @@ ucyMediaSession | null>(null);
         stream.getAudioTracks()[0];
 
       if (audioTrack) {
-        audioTrack.enabled =
-          micOn;
+        audioTrack.enabled = micOn;
       }
 
       if (videoRef.current) {
-        videoRef.current.srcObject =
-          stream;
-
+        videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
 
       setCameraOn(true);
-      setCameraPermission(
-        "granted",
-      );
+      setCameraPermission("granted");
 
       await loadCameras();
 
@@ -459,15 +360,10 @@ ucyMediaSession | null>(null);
         );
       }
     } catch (error) {
-      console.error(
-        "Camera error:",
-        error,
-      );
+      console.error(error);
 
       setCameraOn(false);
-      setCameraPermission(
-        "denied",
-      );
+      setCameraPermission("denied");
 
       setCameraError(
         "Camera access was not allowed. Please allow camera and microphone access in your browser settings, then try again.",
@@ -481,16 +377,13 @@ ucyMediaSession | null>(null);
     if (streamRef.current) {
       streamRef.current
         .getTracks()
-        .forEach((track) =>
-          track.stop(),
-        );
+        .forEach((track) => track.stop());
 
       streamRef.current = null;
     }
 
     if (videoRef.current) {
-      videoRef.current.srcObject =
-        null;
+      videoRef.current.srcObject = null;
     }
 
     setCameraOn(false);
@@ -508,34 +401,25 @@ ucyMediaSession | null>(null);
   }
 
   function toggleMic(): void {
-    const nextMicState =
-      !micOn;
+    const nextMicState = !micOn;
 
     setMicOn(nextMicState);
 
     const audioTracks =
-      streamRef.current?.getAudioTracks() ??
-      [];
+      streamRef.current?.getAudioTracks() ?? [];
 
-    audioTracks.forEach(
-      (track) => {
-        track.enabled =
-          nextMicState;
-      },
-    );
+    audioTracks.forEach((track) => {
+      track.enabled = nextMicState;
+    });
   }
 
   async function handleCameraChange(
     deviceId: string,
   ): Promise<void> {
-    setSelectedCamera(
-      deviceId,
-    );
+    setSelectedCamera(deviceId);
 
     if (cameraOn) {
-      await startCamera(
-        deviceId,
-      );
+      await startCamera(deviceId);
     }
   }
 
@@ -548,8 +432,7 @@ ucyMediaSession | null>(null);
     }
 
     setLive((value) => {
-      const nextValue =
-        !value;
+      const nextValue = !value;
 
       if (!nextValue) {
         setSeconds(0);
@@ -570,20 +453,15 @@ ucyMediaSession | null>(null);
   function handleReferenceUpload(
     event: React.ChangeEvent<HTMLInputElement>,
   ): void {
-    const file =
-      event.target.files?.[0];
+    const file = event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
     if (
-      !file.type.startsWith(
-        "image/",
-      ) &&
-      !file.type.startsWith(
-        "video/",
-      )
+      !file.type.startsWith("image/") &&
+      !file.type.startsWith("video/")
     ) {
       setCameraError(
         "Please choose an image or video file.",
@@ -592,27 +470,20 @@ ucyMediaSession | null>(null);
     }
 
     if (referencePreview) {
-      URL.revokeObjectURL(
-        referencePreview,
-      );
+      URL.revokeObjectURL(referencePreview);
     }
 
     const previewUrl =
       URL.createObjectURL(file);
 
     setSelectedReference(file);
-    setReferencePreview(
-      previewUrl,
-    );
-
+    setReferencePreview(previewUrl);
     setCameraError("");
   }
 
   function removeReference(): void {
     if (referencePreview) {
-      URL.revokeObjectURL(
-        referencePreview,
-      );
+      URL.revokeObjectURL(referencePreview);
     }
 
     setSelectedReference(null);
@@ -620,10 +491,7 @@ ucyMediaSession | null>(null);
   }
 
   async function applyAiLook(): Promise<void> {
-    if (
-      !cameraOn ||
-      !streamRef.current
-    ) {
+    if (!cameraOn || !streamRef.current) {
       setCameraError(
         "Turn on your camera before starting the AI transformation.",
       );
@@ -641,7 +509,6 @@ ucyMediaSession | null>(null);
 
   function disableAiLook(): void {
     stopLucy();
-
     setAiLook(false);
     setAiError("");
   }
@@ -655,9 +522,7 @@ ucyMediaSession | null>(null);
       if (streamRef.current) {
         streamRef.current
           .getTracks()
-          .forEach((track) =>
-            track.stop(),
-          );
+          .forEach((track) => track.stop());
       }
     };
 
@@ -667,9 +532,7 @@ ucyMediaSession | null>(null);
   useEffect(() => {
     return () => {
       if (referencePreview) {
-        URL.revokeObjectURL(
-          referencePreview,
-        );
+        URL.revokeObjectURL(referencePreview);
       }
     };
   }, [referencePreview]);
@@ -679,25 +542,19 @@ ucyMediaSession | null>(null);
       return;
     }
 
-    const timer =
-      window.setInterval(() => {
-        setSeconds(
-          (value) =>
-            value + 1,
-        );
-      }, 1000);
+    const timer = window.setInterval(() => {
+      setSeconds(
+        (value) => value + 1,
+      );
+    }, 1000);
 
     return () => {
-      window.clearInterval(
-        timer,
-      );
+      window.clearInterval(timer);
     };
   }, [live]);
 
   const time = `${String(
-    Math.floor(
-      seconds / 60,
-    ),
+    Math.floor(seconds / 60),
   ).padStart(2, "0")}:${String(
     seconds % 60,
   ).padStart(2, "0")}`;
@@ -785,9 +642,7 @@ ucyMediaSession | null>(null);
                   />
 
                   <video
-                    ref={
-                      transformedVideoRef
-                    }
+                    ref={transformedVideoRef}
                     autoPlay
                     muted
                     playsInline
@@ -888,8 +743,7 @@ ucyMediaSession | null>(null);
                       type="button"
                       onClick={() =>
                         void startCamera(
-                          selectedCamera ||
-                            undefined,
+                          selectedCamera || undefined,
                         )
                       }
                       className="mt-3 rounded-lg bg-white/[.08] px-4 py-2 text-xs font-bold text-slate-200"
@@ -920,9 +774,7 @@ ucyMediaSession | null>(null);
               {aiLook &&
                 cameraOn && (
                   <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-violet-300/30 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 backdrop-blur">
-                    <WandSparkles
-                      size={13}
-                    />
+                    <WandSparkles size={13} />
 
                     {aiTransforming
                       ? "Connecting AI…"
@@ -936,9 +788,7 @@ ucyMediaSession | null>(null);
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={
-                  toggleLive
-                }
+                onClick={toggleLive}
                 className="btn-primary flex items-center justify-center gap-2 rounded-xl py-3.5 font-bold"
                 data-testid="button-go-live"
               >
@@ -951,9 +801,7 @@ ucyMediaSession | null>(null);
 
               <button
                 type="button"
-                onClick={
-                  toggleCamera
-                }
+                onClick={toggleCamera}
                 className={`flex items-center justify-center gap-2 rounded-xl border py-3.5 font-semibold ${
                   cameraOn
                     ? "border-cyan-300/30 bg-cyan-300/[.06] text-cyan-100"
@@ -964,9 +812,7 @@ ucyMediaSession | null>(null);
                 {cameraOn ? (
                   <Video size={17} />
                 ) : (
-                  <VideoOff
-                    size={17}
-                  />
+                  <VideoOff size={17} />
                 )}
 
                 {cameraOn
@@ -976,9 +822,7 @@ ucyMediaSession | null>(null);
 
               <button
                 type="button"
-                onClick={
-                  toggleMic
-                }
+                onClick={toggleMic}
                 className={`flex items-center justify-center gap-2 rounded-xl border py-3.5 font-semibold sm:col-span-2 ${
                   micOn
                     ? "border-white/10 bg-white/[.03] text-slate-200"
@@ -989,9 +833,7 @@ ucyMediaSession | null>(null);
                 {micOn ? (
                   <Mic size={17} />
                 ) : (
-                  <MicOff
-                    size={17}
-                  />
+                  <MicOff size={17} />
                 )}
 
                 {micOn
@@ -1007,9 +849,7 @@ ucyMediaSession | null>(null);
                 </span>
 
                 <select
-                  value={
-                    selectedCamera
-                  }
+                  value={selectedCamera}
                   onChange={(event) =>
                     void handleCameraChange(
                       event.target.value,
@@ -1018,17 +858,13 @@ ucyMediaSession | null>(null);
                   className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
                   data-testid="select-camera"
                 >
-                  {cameras.length ===
-                  0 ? (
+                  {cameras.length === 0 ? (
                     <option value="">
                       Camera
                     </option>
                   ) : (
                     cameras.map(
-                      (
-                        camera,
-                        index,
-                      ) => (
+                      (camera, index) => (
                         <option
                           key={
                             camera.deviceId ||
@@ -1038,9 +874,7 @@ ucyMediaSession | null>(null);
                             camera.deviceId
                           }
                         >
-                          {
-                            camera.label
-                          }
+                          {camera.label}
                         </option>
                       ),
                     )
@@ -1059,9 +893,7 @@ ucyMediaSession | null>(null);
                 </span>
 
                 <select
-                  value={
-                    resolution
-                  }
+                  value={resolution}
                   onChange={(event) =>
                     setResolution(
                       event.target.value,
@@ -1070,13 +902,8 @@ ucyMediaSession | null>(null);
                   className="w-full appearance-none rounded-xl border border-white/10 bg-[#111a2a] px-4 py-3 text-sm text-slate-300 outline-none focus:border-cyan-300/50"
                   data-testid="select-resolution"
                 >
-                  <option>
-                    1080p
-                  </option>
-
-                  <option>
-                    720p
-                  </option>
+                  <option>1080p</option>
+                  <option>720p</option>
                 </select>
 
                 <ChevronDown
@@ -1088,9 +915,7 @@ ucyMediaSession | null>(null);
 
             <button
               type="button"
-              onClick={
-                openLookPicker
-              }
+              onClick={openLookPicker}
               className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold ${
                 aiLook
                   ? "border-violet-300/40 bg-violet-300/[.1] text-violet-100"
@@ -1098,9 +923,7 @@ ucyMediaSession | null>(null);
               }`}
               data-testid="button-toggle-ai-look"
             >
-              <WandSparkles
-                size={17}
-              />
+              <WandSparkles size={17} />
 
               {aiLook
                 ? "AI look active"
@@ -1116,9 +939,7 @@ ucyMediaSession | null>(null);
             {aiLook && (
               <button
                 type="button"
-                onClick={
-                  disableAiLook
-                }
+                onClick={disableAiLook}
                 className="mt-2 w-full text-xs font-semibold text-slate-500 hover:text-slate-300"
               >
                 Turn off AI look
@@ -1214,9 +1035,7 @@ ucyMediaSession | null>(null);
               </div>
 
               <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                <Settings2
-                  size={14}
-                />
+                <Settings2 size={14} />
 
                 Camera and audio are ready to
                 configure
@@ -1257,9 +1076,7 @@ ucyMediaSession | null>(null);
       {showLookPicker && (
         <div
           className="fixed inset-0 z-[100] flex items-end justify-center bg-black/75 p-3 backdrop-blur-md sm:items-center sm:p-6"
-          onClick={
-            closeLookPicker
-          }
+          onClick={closeLookPicker}
           data-testid="ai-look-picker-overlay"
         >
           <div
@@ -1284,9 +1101,7 @@ ucyMediaSession | null>(null);
 
               <button
                 type="button"
-                onClick={
-                  closeLookPicker
-                }
+                onClick={closeLookPicker}
                 className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/[.05] text-slate-200 hover:bg-white/[.1]"
                 aria-label="Close look picker"
                 data-testid="button-close-look-picker"
@@ -1333,9 +1148,7 @@ ucyMediaSession | null>(null);
                       )
                     ) : (
                       <img
-                        src={
-                          DEFAULT_LOOK_IMAGE
-                        }
+                        src={DEFAULT_LOOK_IMAGE}
                         alt="Default AI look"
                         className="h-full w-full object-cover"
                       />
@@ -1392,9 +1205,7 @@ ucyMediaSession | null>(null);
                 <div className="mt-4 flex items-center justify-between rounded-xl border border-violet-300/20 bg-violet-300/[.05] p-3">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-violet-100">
-                      {
-                        selectedReference.name
-                      }
+                      {selectedReference.name}
                     </p>
 
                     <p className="mt-1 text-[11px] text-slate-500">
