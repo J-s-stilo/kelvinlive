@@ -1,19 +1,11 @@
-import {
-  createDecartClient,
-  models,
-} from "@decartai/sdk";
+import { createDecartClient, models } from "@decartai/sdk";
 
 const LUCY_MODEL = "lucy-latest";
 
-type DecartClient =
-  ReturnType<typeof createDecartClient>;
-
-type DecartRealtimeClient =
-  Awaited<
-    ReturnType<
-      DecartClient["realtime"]["connect"]
-    >
-  >;
+type DecartClient = ReturnType<typeof createDecartClient>;
+type DecartRealtimeClient = Awaited<
+  ReturnType<DecartClient["realtime"]["connect"]>
+>;
 
 export type LucyConnection = {
   client: DecartClient | null;
@@ -24,14 +16,8 @@ export type LucyConnection = {
 
 export type LucyMediaSession = {
   close: () => void;
-  setPrompt: (
-    prompt: string,
-    enhancePrompt?: boolean,
-  ) => void;
-  setReferenceImage: (
-    referenceImageUrl: string,
-    prompt?: string,
-  ) => void;
+  setPrompt: (prompt: string, enhancePrompt?: boolean) => void;
+  setReferenceImage: (referenceImageUrl: string, prompt?: string) => void;
 };
 
 async function getDecartClientToken(): Promise<string> {
@@ -39,9 +25,7 @@ async function getDecartClientToken(): Promise<string> {
 
   const response = await fetch("/api/decart/token", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
   });
 
   const data = await response.json().catch(() => null);
@@ -51,18 +35,11 @@ async function getDecartClientToken(): Promise<string> {
       data && typeof data.error === "string"
         ? data.error
         : "Unable to create Decart client token.";
-
     throw new Error(message);
   }
 
-  if (
-    !data ||
-    typeof data.apiKey !== "string" ||
-    !data.apiKey.trim()
-  ) {
-    throw new Error(
-      "Decart returned an invalid client token.",
-    );
+  if (!data || typeof data.apiKey !== "string" || !data.apiKey.trim()) {
+    throw new Error("Decart returned an invalid client token.");
   }
 
   console.log("Decart client token received.");
@@ -70,15 +47,11 @@ async function getDecartClientToken(): Promise<string> {
   return data.apiKey;
 }
 
-async function dataUrlToBase64(
-  dataUrl: string,
-): Promise<string> {
+async function dataUrlToBase64(dataUrl: string): Promise<string> {
   const commaIndex = dataUrl.indexOf(",");
 
   if (commaIndex === -1) {
-    throw new Error(
-      "Invalid reference image data URL.",
-    );
+    throw new Error("Invalid reference image data URL.");
   }
 
   return dataUrl.slice(commaIndex + 1);
@@ -104,24 +77,12 @@ export function createLucyMediaSession(
   onError: (error: unknown) => void,
 ): LucyMediaSession {
   let closed = false;
+  let connected = false;
 
-  let realtimeClient:
-    | DecartRealtimeClient
-    | null = null;
+  let realtimeClient: DecartRealtimeClient | null = null;
 
-  let pendingPrompt:
-    | {
-        text: string;
-        enhance: boolean;
-      }
-    | null = null;
-
-  let pendingReference:
-    | {
-        image: string;
-        prompt?: string;
-      }
-    | null = null;
+  let pendingPrompt: { text: string; enhance: boolean } | null = null;
+  let pendingReference: { image: string; prompt?: string } | null = null;
 
   async function applyReferenceImage(
     referenceImageUrl: string,
@@ -137,22 +98,17 @@ export function createLucyMediaSession(
       return;
     }
 
-    console.log(
-      "Sending reference image to Decart...",
-    );
+    console.log("Preparing Decart reference image...");
 
     let imageBase64: string;
 
     if (cleanImage.startsWith("data:")) {
-      imageBase64 =
-        await dataUrlToBase64(cleanImage);
+      imageBase64 = await dataUrlToBase64(cleanImage);
     } else {
       const response = await fetch(cleanImage);
 
       if (!response.ok) {
-        throw new Error(
-          "Unable to load the Decart reference image.",
-        );
+        throw new Error("Unable to load the Decart reference image.");
       }
 
       const blob = await response.blob();
@@ -168,33 +124,24 @@ export function createLucyMediaSession(
       imageBase64 = btoa(binary);
     }
 
+    console.log("Sending reference image to Decart...");
+
     await realtimeClient.setImage(
       imageBase64,
       prompt?.trim() || undefined,
       true,
     );
 
-    console.log(
-      "DECART REFERENCE IMAGE APPLIED",
-    );
+    console.log("DECART REFERENCE IMAGE APPLIED");
   }
 
   async function connect(): Promise<void> {
     try {
-      console.log(
-        "=================================",
-      );
+      console.log("=================================");
+      console.log("STARTING DECART REALTIME");
+      console.log("=================================");
 
-      console.log(
-        "CONNECTING TO DECART REALTIME",
-      );
-
-      console.log(
-        "=================================",
-      );
-
-      const clientToken =
-        await getDecartClientToken();
+      const clientToken = await getDecartClientToken();
 
       if (closed) {
         return;
@@ -206,15 +153,9 @@ export function createLucyMediaSession(
 
       connection.client = client;
 
-      const model = models.realtime(
-        LUCY_MODEL,
-      );
+      const model = models.realtime(LUCY_MODEL);
 
-      console.log(
-        "Decart model:",
-        LUCY_MODEL,
-      );
-
+      console.log("Decart model:", LUCY_MODEL);
       console.log(
         "Decart model:",
         model.width,
@@ -229,65 +170,51 @@ export function createLucyMediaSession(
         DecartClient["realtime"]["connect"]
       >[1] = {
         model,
-
         mirror: "auto",
 
-        onRemoteStream: (
-          transformedStream,
-        ) => {
+        onRemoteStream: (transformedStream) => {
           if (closed) {
             return;
           }
 
-          console.log(
-            "=================================",
-          );
+          console.log("=================================");
+          console.log("DECART TRANSFORMED STREAM RECEIVED");
+          console.log("=================================");
 
-          console.log(
-            "DECART TRANSFORMED STREAM RECEIVED",
-          );
-
-          console.log(
-            "=================================",
-          );
-
-          outputVideo.srcObject =
-            transformedStream;
-
+          outputVideo.srcObject = transformedStream;
           outputVideo.autoplay = true;
           outputVideo.muted = true;
           outputVideo.playsInline = true;
 
-          void outputVideo
-            .play()
-            .then(() => {
-              if (!closed) {
-                console.log(
-                  "DECART TRANSFORMATION IS LIVE",
-                );
-
+          void outputVideo.play().then(
+            () => {
+              if (!closed && !connected) {
+                connected = true;
+                console.log("=================================");
+                console.log("AI TRANSFORMATION IS LIVE");
+                console.log("=================================");
                 onConnected();
               }
-            })
-            .catch((error) => {
-              console.error(
-                "Decart output video play failed:",
-                error,
-              );
+            },
+            (error) => {
+              console.error("Output video play failed:", error);
 
-              if (!closed) {
+              if (!closed && !connected) {
+                connected = true;
                 onConnected();
               }
-            });
+            },
+          );
         },
 
         onError: (error) => {
-          console.error(
-            "DECART REALTIME ERROR:",
-            error,
-          );
+          console.error("=================================");
+          console.error("DECART REALTIME ERROR:", error);
+          console.error("=================================");
 
-          onError(error);
+          if (!closed) {
+            onError(error);
+          }
         },
       };
 
@@ -300,11 +227,9 @@ export function createLucyMediaSession(
         };
       }
 
-      realtimeClient =
-        await client.realtime.connect(
-          inputStream,
-          options,
-        );
+      console.log("Opening Decart realtime connection...");
+
+      realtimeClient = await client.realtime.connect(inputStream, options);
 
       if (closed) {
         realtimeClient.disconnect();
@@ -312,45 +237,46 @@ export function createLucyMediaSession(
         return;
       }
 
-      connection.realtimeClient =
-        realtimeClient;
+      connection.realtimeClient = realtimeClient;
 
-      console.log(
-        "=================================",
-      );
+      console.log("=================================");
+      console.log("DECART REALTIME CONNECTION OPEN");
+      console.log("=================================");
 
-      console.log(
-        "DECART REALTIME CONNECTED",
-      );
+      realtimeClient.on("connectionChange", (state) => {
+        console.log("DECART CONNECTION STATE:", state);
 
-      console.log(
-        "=================================",
-      );
+        if (state === "connected" || state === "generating") {
+          console.log("DECART SESSION READY");
+        }
+      });
 
       if (pendingReference) {
-        const reference =
-          pendingReference;
+        const reference = pendingReference;
 
-        await applyReferenceImage(
-          reference.image,
-          reference.prompt,
-        );
+        try {
+          await applyReferenceImage(
+            reference.image,
+            reference.prompt,
+          );
+        } catch (error) {
+          console.error(
+            "Decart reference image failed:",
+            error,
+          );
+
+          onError(error);
+        }
       }
     } catch (error) {
-      console.error(
-        "=================================",
-      );
+      console.error("=================================");
+      console.error("DECART REALTIME CONNECTION FAILED:");
+      console.error(error);
+      console.error("=================================");
 
-      console.error(
-        "DECART REALTIME CONNECTION FAILED:",
-        error,
-      );
-
-      console.error(
-        "=================================",
-      );
-
-      onError(error);
+      if (!closed) {
+        onError(error);
+      }
     }
   }
 
@@ -376,25 +302,21 @@ export function createLucyMediaSession(
     pendingReference = null;
 
     if (!realtimeClient) {
-      console.log(
-        "Decart is connecting; prompt queued.",
-      );
-
+      console.log("Decart is connecting; prompt queued.");
       return;
     }
 
     void realtimeClient
-      .setPrompt(
-        cleanPrompt,
-        enhancePrompt,
-      )
+      .setPrompt(cleanPrompt, enhancePrompt)
+      .then(() => {
+        console.log("DECART PROMPT APPLIED");
+      })
       .catch((error) => {
-        console.error(
-          "Decart prompt failed:",
-          error,
-        );
+        console.error("Decart prompt failed:", error);
 
-        onError(error);
+        if (!closed) {
+          onError(error);
+        }
       });
   }
 
@@ -406,8 +328,7 @@ export function createLucyMediaSession(
       return;
     }
 
-    const cleanImage =
-      referenceImageUrl.trim();
+    const cleanImage = referenceImageUrl.trim();
 
     if (!cleanImage) {
       return;
@@ -421,23 +342,16 @@ export function createLucyMediaSession(
     pendingPrompt = null;
 
     if (!realtimeClient) {
-      console.log(
-        "Decart is connecting; reference image queued.",
-      );
-
+      console.log("Decart is connecting; reference image queued.");
       return;
     }
 
-    void applyReferenceImage(
-      cleanImage,
-      prompt,
-    ).catch((error) => {
-      console.error(
-        "Decart reference image failed:",
-        error,
-      );
+    void applyReferenceImage(cleanImage, prompt).catch((error) => {
+      console.error("Decart reference image failed:", error);
 
-      onError(error);
+      if (!closed) {
+        onError(error);
+      }
     });
   }
 
@@ -451,17 +365,12 @@ export function createLucyMediaSession(
 
       closed = true;
 
-      console.log(
-        "Disconnecting Decart realtime...",
-      );
+      console.log("Disconnecting Decart realtime...");
 
       try {
         realtimeClient?.disconnect();
       } catch (error) {
-        console.error(
-          "Decart disconnect failed:",
-          error,
-        );
+        console.error("Decart disconnect failed:", error);
       }
 
       realtimeClient = null;
@@ -472,9 +381,7 @@ export function createLucyMediaSession(
         outputVideo.srcObject = null;
       }
 
-      console.log(
-        "Decart media session closed.",
-      );
+      console.log("Decart media session closed.");
     },
 
     setPrompt,
@@ -486,10 +393,6 @@ export async function handleLucyResult(
   connection: LucyConnection,
   result: unknown,
 ): Promise<void> {
-  console.log(
-    "Decart realtime result:",
-    result,
-  );
-
+  console.log("Decart realtime result:", result);
   connection.onResult(result);
 }
